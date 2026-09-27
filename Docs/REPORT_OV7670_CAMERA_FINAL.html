@@ -1,0 +1,1380 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <title>Báo cáo Kỹ thuật OV7670 Camera</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+
+        /* ================== THIẾT KẾ MODERN DARK / GLASSMORPHISM ================== */
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #cbd5e1;
+            --text-heading: #f8fafc;
+            --accent: #38bdf8;
+            --border: #334155;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 40px 20px;
+            line-height: 1.8;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.05) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(129, 140, 248, 0.05) 0px, transparent 50%);
+            background-attachment: fixed;
+        }
+        
+        #content {
+            max-width: 950px;
+            margin: 0 auto;
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(16px);
+            padding: 60px 80px;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* Typography & Headings */
+        h1, h2, h3, h4 {
+            color: var(--text-heading);
+            font-weight: 700;
+            margin-top: 2.5em;
+            margin-bottom: 1em;
+            line-height: 1.3;
+        }
+        
+        h1 {
+            font-size: 2.2rem;
+            text-align: center;
+            background: linear-gradient(135deg, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-top: 0;
+            margin-bottom: 1.5em;
+        }
+        
+        h2 {
+            font-size: 1.5rem;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 12px;
+            color: var(--accent);
+            text-transform: uppercase;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 35px 0;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        th, td {
+            padding: 16px 24px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        th {
+            background-color: rgba(15, 23, 42, 0.6);
+            color: var(--accent);
+            font-weight: 600;
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:nth-child(even) { background-color: rgba(255, 255, 255, 0.02); }
+
+        /* Code Blocks */
+        pre {
+            background-color: #0f172a;
+            padding: 20px 25px;
+            border-radius: 12px;
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            font-family: 'JetBrains Mono', Consolas, monospace;
+            font-size: 0.95rem;
+        }
+        code {
+            font-family: 'JetBrains Mono', Consolas, monospace;
+            font-variant-ligatures: none;
+            background: rgba(56, 189, 248, 0.1);
+            color: var(--accent);
+            padding: 3px 6px;
+            border-radius: 6px;
+            font-size: 0.9em;
+        }
+        pre code {
+            background: none;
+            color: #e2e8f0;
+            padding: 0;
+        }
+
+        /* Blockquotes */
+        blockquote {
+            margin: 35px 0;
+            padding: 20px 25px;
+            background: rgba(56, 189, 248, 0.05);
+            border-left: 4px solid var(--accent);
+            border-radius: 0 12px 12px 0;
+            color: #94a3b8;
+        }
+        blockquote strong { color: var(--accent); }
+        
+        /* Mermaid Diagram */
+        .mermaid {
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 16px;
+            margin: 40px 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            position: relative;
+            cursor: zoom-in;
+            transition: transform 0.3s ease;
+        }
+        .mermaid::before {
+            content: '🔍 Click để phóng to';
+            position: absolute;
+            top: -15px;
+            right: 20px;
+            background: var(--accent);
+            color: #0f172a;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+        .mermaid:hover { transform: translateY(-5px); }
+        .mermaid svg { max-width: 100%; height: auto; }
+
+        /* ================== SIMULATOR CSS ================== */
+        .pc-simulator-container {
+            flex-direction: column; align-items: center; margin: 0;
+            background: rgba(15, 23, 42, 0.6); padding: 20px; border-radius: 20px;
+            border: 1px solid var(--border); box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+            transform: scale(0.75); transform-origin: center top;
+        }
+        .pc-monitor {
+            width: 640px; height: 480px; background-color: #000;
+            border: 20px solid #111; border-radius: 10px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.8), inset 0 0 10px rgba(0,0,0,0.5); 
+            position: relative; overflow: hidden;
+        }
+        .pc-stand { width: 120px; height: 40px; background: #111; }
+        .pc-base { width: 250px; height: 20px; background: #000; border-radius: 10px 10px 0 0; }
+        
+        .screen-content {
+            width: 100%; height: 100%; background-color: #000;
+            display: flex; justify-content: center; align-items: flex-end; padding-bottom: 20px;
+            color: #fff; font-size: 18px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            background-size: cover; background-position: center; background-repeat: no-repeat;
+            transition: all 0.3s ease;
+        }
+        
+        .stage-1 { background-color: #000; background-image: none; }
+        .stage-2 { background-image: url('images/stage2.jpg'); }
+        .stage-3 { background-image: url('images/stage3.jpg'); }
+        .stage-4 { background-image: url('images/stage4.jpg'); }
+        .stage-5 { background-image: url('images/stage5.jpg'); }
+        .stage-bonus { background-image: url('images/bonus.jpg'); }
+        .stage-final { background-image: url('images/media_1789294590576.jpg'); }
+
+        .pc-controls { margin-top: 30px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; max-width: 750px;}
+        .pc-btn {
+            padding: 10px 18px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem;
+            background-color: #1e293b; color: var(--text-main); cursor: pointer; font-weight: 600;
+            transition: all 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .pc-btn:hover { background-color: #334155; color: #fff; transform: translateY(-2px); }
+        .pc-btn.active { background-color: var(--accent); color: #0f172a; border-color: var(--accent); box-shadow: 0 0 15px rgba(56, 189, 248, 0.4); }
+        .sim-text-badge { background: rgba(0,0,0,0.8); padding: 8px 16px; border-radius: 6px; text-align: center; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(4px);}
+        
+        /* Navigation Tabs */
+        .app-nav {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            padding: 15px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            border-bottom: 1px solid var(--border);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+            margin: -40px -20px 40px -20px; /* Bù lại padding của body */
+        }
+        .nav-btn {
+            background: #1e293b;
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Inter', sans-serif;
+        }
+        .nav-btn:hover {
+            background: #334155;
+            color: #fff;
+            transform: translateY(-2px);
+        }
+        .nav-btn.active {
+            background: var(--accent);
+            color: #0f172a;
+            border-color: var(--accent);
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+        }
+        
+        #view-simulator {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 0;
+            animation: fadeIn 0.5s ease;
+        }
+        
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    
+        
+        .app-nav {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 20px auto 40px;
+            position: sticky;
+            top: 20px;
+            z-index: 100;
+        }
+
+        .nav-btn {
+            background: rgba(30, 41, 59, 0.5);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text-main);
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-family: 'Inter', sans-serif;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .nav-btn:hover {
+            background: rgba(56, 189, 248, 0.1);
+            border-color: rgba(56, 189, 248, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .nav-btn.active {
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(129, 140, 248, 0.2));
+            border-color: #38bdf8;
+            color: #fff;
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.3);
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin: 20px 0;
+            display: block;
+        }
+    
+        
+        /* IMAGE LIGHTBOX CSS */
+        .zoomable-img {
+            cursor: zoom-in;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            max-width: 100%;
+            display: block;
+            margin: 20px auto;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .zoomable-img:hover {
+            transform: scale(1.02);
+            box-shadow: 0 8px 30px rgba(56, 189, 248, 0.4);
+        }
+        
+        #img-lightbox {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(8px);
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            cursor: grab;
+        }
+        #img-lightbox:active {
+            cursor: grabbing;
+        }
+        
+        #lightbox-img-element {
+            position: absolute;
+            transform-origin: center center;
+            transition: transform 0.1s ease-out;
+            max-width: none;
+            max-height: none;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+            /* Ensure high quality rendering when zoomed */
+            image-rendering: -webkit-optimize-contrast;
+        }
+        
+        .lightbox-close {
+            position: absolute;
+            top: 20px;
+            right: 40px;
+            color: #cbd5e1;
+            font-size: 50px;
+            font-weight: 300;
+            cursor: pointer;
+            z-index: 10000;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            transition: color 0.2s, transform 0.2s;
+        }
+        .lightbox-close:hover {
+            color: var(--accent);
+            transform: scale(1.1);
+        }
+        .lightbox-hint {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #f8fafc;
+            background: rgba(30, 41, 59, 0.9);
+            border: 1px solid var(--border);
+            padding: 10px 24px;
+            border-radius: 30px;
+            font-size: 14px;
+            pointer-events: none;
+            z-index: 10000;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+    
+        /* TAB NAVBAR */
+        .nav-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 40px;
+            padding-top: 20px;
+        }
+        .nav-btn {
+            padding: 12px 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--text-main);
+            background: var(--card-bg);
+            border: 2px solid var(--border);
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .nav-btn.active {
+            background: var(--accent);
+            color: #0f172a;
+            border-color: var(--accent);
+            box-shadow: 0 4px 15px rgba(56, 189, 248, 0.4);
+        }
+        .nav-btn:hover:not(.active) {
+            background: rgba(255,255,255,0.1);
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        /* MONITOR UI */
+        .monitor-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+            max-width: 950px;
+            margin: 0 auto;
+        }
+        .monitor-frame {
+            background: #111;
+            padding: 25px 25px 50px 25px;
+            border-radius: 20px;
+            box-shadow: 
+                0 20px 50px rgba(0,0,0,0.8),
+                inset 0 2px 10px rgba(255,255,255,0.1),
+                inset 0 -5px 15px rgba(0,0,0,0.8);
+            position: relative;
+        }
+        .monitor-screen {
+            background: #000;
+            width: 640px;
+            height: 480px;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+        }
+        .monitor-screen img, .monitor-screen video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain; /* Don't crop debug images */
+            display: none;
+        }
+        .monitor-screen img.active, .monitor-screen video.active {
+            display: block;
+        }
+        .monitor-logo {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #555;
+            font-family: 'Inter', sans-serif;
+            font-weight: 800;
+            letter-spacing: 3px;
+        }
+        .monitor-power {
+            position: absolute;
+            bottom: 20px;
+            right: 30px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #27ae60;
+            box-shadow: 0 0 10px #27ae60;
+        }
+        
+        /* STAGE CONTROLS */
+        .stage-controls {
+            display: flex;
+            gap: 15px;
+            margin-top: 40px;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 800px;
+        }
+        .stage-btn {
+            background: var(--card-bg);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: 0.2s;
+        }
+        .stage-btn:hover { background: rgba(255,255,255,0.1); }
+        .stage-btn.active {
+            background: var(--accent);
+            color: #000;
+            border-color: var(--accent);
+        }
+        .stage-desc {
+            margin-top: 20px;
+            font-size: 1.1rem;
+            color: #cbd5e1;
+            text-align: center;
+            max-width: 700px;
+            min-height: 60px;
+            background: rgba(30, 41, 59, 0.8);
+            padding: 15px 25px;
+            border-radius: 10px;
+            border: 1px dashed var(--border);
+        }
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        window.MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] }, startup: { typeset: true } };
+    </script>
+    <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+
+    <div class="nav-tabs">
+        <button id="btn-tab1" class="nav-btn" onclick="switchMainTab('tab1')">📖 Lý Thuyết & Kiến Trúc</button>
+        <button id="btn-tab2" class="nav-btn" onclick="switchMainTab('tab2')">🛠️ Nhật Ký Sửa Lỗi</button>
+        <button id="btn-sim" class="nav-btn active" onclick="switchMainTab('simulator')">🖥️ Giả Lập VGA Camera</button>
+    </div>
+    
+    <!-- WRAPPER FOR REPORT -->
+    
+    <div id="content" style="display:none;">
+        <div id="tab1" class="tab-content active">
+<h1>BÁO CÁO KỸ THUẬT TOÀN DIỆN: DỰ ÁN HỆ THỐNG CAMERA OV7670 TRÊN FPGA</h1>
+<p><strong>Hệ thống thu nhận, xử lý và hiển thị Video thời gian thực 640x480 qua SDRAM Ping-Pong Buffer trên KIT Terasic DE1</strong></p>
+<blockquote>
+<p><strong>💡 GHI CHÚ QUAN TRỌNG:</strong>
+Báo cáo này tổng hợp lại toàn bộ kiến trúc hệ thống, lý thuyết cốt lõi về chuẩn I2C, giao thức DVP, bộ đệm Ping-Pong SDRAM và đặc biệt là <strong>Nhật ký Debug 5 Chặng Sinh Tử</strong> để đưa hệ thống từ chỗ màn hình nhiễu rác đến khi xuất ra hình ảnh thực tế hoàn hảo.</p>
+</blockquote>
+<hr />
+<h1>I. TỔNG QUAN KIẾN TRÚC HỆ THỐNG</h1>
+<h1>🗺️ SƠ ĐỒ KHỐI HỆ THỐNG TOÀN DIỆN (FULL SYSTEM TOPOLOGY)</h1>
+<p>Dưới đây là hình ảnh toàn cảnh hệ thống:
+
+
+<p><img class="zoomable-img" alt="Sơ đồ khối hệ thống OV7670 - Tối ưu Khoảng cách và Mở rộng Module" src="SYSTEM_BLOCK_DIAGRAM_FINAL_SPACED.png" /></p>
+  
+<h2>Chú thích luồng hệ thống:</h2>
+<ol>
+<li><strong>Luồng Cấu Hình (I2C):</strong> Mạch <code>ov7670_config</code> nạp mã từ ROM vào <code>i2c_master</code> để thiết lập các thanh ghi Camera (phân giải, màu sắc) ngay sau khi boot.</li>
+<li><strong>Luồng Video Thu Nhận:</strong> Camera phun dữ liệu 8-bit. Mạch <code>ov7670_capture</code> gom 2 byte thành 1 Pixel 16-bit và đẩy vào ngõ ghi của <code>W-FIFO</code> (chạy theo xung 24MHz của camera).</li>
+<li><strong>Bộ Đệm Trung Tâm (SDRAM Arbiter):</strong> Đóng vai trò tổng chỉ huy (Gác đập). Arbiter bơm nước (Video data) từ W-FIFO lên SDRAM, đồng thời hút nước từ SDRAM rót vào R-FIFO (chạy theo xung 50MHz).</li>
+<li><strong>Luồng Xuất Hình VGA:</strong> Khối <code>vga_sync</code> sinh ra tọa độ quét (25MHz). Khi tới vùng hiển thị (video_on), khối DAC hút data từ R-FIFO, tách thành kênh R-G-B xuất ra màn hình vật lý.</li>
+<li><strong>Cơ Chế Đồng Bộ:</strong> Mọi thứ được thắt nút bằng tín hiệu <code>vsync</code>. Vsync reset hàng loạt các con trỏ địa chỉ, đảm bảo khung hình luôn được quét từ điểm đầu tiên ở góc trên cùng bên trái.</li>
+</ol>
+<h2>MÔ HÌNH TRỪU TƯỢNG HÓA LUỒNG DỮ LIỆU (DATA FLOW)</h2>
+<p>Để dễ hình dung hệ thống phần cứng phức tạp này, có thể áp dụng tư duy hình tượng hóa vào 2 nút thắt quan trọng nhất của hệ thống: <strong>Khâu hứng dữ liệu (Capture)</strong> và <strong>Khâu phân luồng bộ nhớ (Arbiter)</strong>.</p>
+<h3>1. Trạm đóng gói kẹo 16-gram (Mô hình DVP Capture)</h3>
+<p>Hãy tưởng tượng luồng chảy dữ liệu từ Camera đi vào FPGA giống như một <strong>Trạm đóng gói kẹo</strong> nằm trên một băng chuyền chạy với tốc độ PCLK (24MHz).</p>
+<ol>
+<li>
+<p><strong>Băng chuyền chạy:</strong> Camera liên tục ném lên băng chuyền từng viên kẹo 8-gram (D[7:0]).</p>
+</li>
+<li>
+<p><strong>Luật chơi (HREF):</strong> Trạm đóng gói chỉ được phép gắp kẹo đưa vào phễu khi đèn báo hiệu HREF sáng (báo hiệu dữ liệu hợp lệ).</p>
+</li>
+<li>
+<p><strong>Nhào nặn (Lắp ráp):</strong> Vì mục tiêu là đóng gói 16-gram (Pixel RGB565), máy phải chờ gắp viên kẹo thứ nhất (Byte cao - cất vào túi tạm), sau đó đợi đến nhịp tiếp theo để gắp viên kẹo thứ hai (Byte thấp).</p>
+</li>
+<li>
+<p><strong>Xuất xưởng:</strong> Ngay tại nhịp thứ 2, máy ép 2 viên kẹo 8-gram lại với nhau thành 1 gói 16-gram (pixel_data), lập tức bật đèn xanh (pixel_valid = Write Enable) và quăng tọt vào thùng chứa phía sau (chính là W-FIFO). Quá trình này lặp lại liên tục cho đến hết hàng.</p>
+</li>
+<li>
+<p><strong>Qua ngày mới (VSYNC):</strong> Khi cờ VSYNC phất lên, giám đốc xưởng hô to: "Xong một bức tranh kẹo! Quét sạch phễu chứa, reset bộ đếm, chuẩn bị đón ca mới!".</p>
+</li>
+</ol>
+<h3>2. Mô hình "Người Gác Đập và Hệ thống Thủy lợi" (Giải phẫu luồng dữ liệu SDRAM Ping-Pong)</h3>
+<p>Để giải quyết bài toán chênh lệch tốc độ giữa Camera (chảy chậm, ngắt quãng) và Màn hình VGA (hút nước liên tục, tốc độ cực cao), hệ thống SDRAM Arbiter được thiết kế như một <strong>Hệ thống thủy lợi quy mô lớn</strong>, trong đó mỗi module phần cứng đóng một vai trò vật lý rất rõ ràng:</p>
+<ol>
+<li>
+<p><strong>W-FIFO (Bồn chứa trung chuyển đầu nguồn):</strong>
+Camera giống như một con suối tự nhiên, dòng chảy (PCLK) không đều đặn và có những lúc ngắt quãng (Blanking). W-FIFO chính là một <strong>Bồn chứa nước nhỏ</strong> đặt ngay dưới thác nước. Khối DVP Capture liên tục hứng từng giọt nước từ Camera đổ vào bồn này. Mục đích của bồn W-FIFO là gom đủ một lượng nước nhất định (ví dụ: 256 giọt) để chuẩn bị cho một lần xả lớn, tránh việc phải vận chuyển từng giọt một cách lắt nhắt gây lãng phí băng thông bộ nhớ.</p>
+</li>
+<li>
+<p><strong>SDRAM (Hồ chứa thủy điện khổng lồ - Ping-Pong Bank):</strong>
+Đây là lõi của hệ thống. SDRAM giống như một <strong>Hồ chứa nước khổng lồ</strong> có khả năng chứa hàng triệu khối nước (đủ không gian cho toàn bộ khung hình 640x480). 
+Tuy nhiên, để tránh việc nước sạch mới bơm vào bị lẫn lộn với nước cũ đang xả ra (gây hiện tượng xé hình ngang - Tearing), hồ chứa này được chia làm 2 nửa phân lô độc lập: <strong>Hồ A (Bank 0)</strong> và <strong>Hồ B (Bank 1)</strong>. </p>
+</li>
+<li>Khi Hồ A đang mở cổng cho Camera đổ nước mới vào, thì Hồ B sẽ đóng cổng nạp và chỉ mở cổng xả để cấp nước cho VGA.</li>
+<li>
+<p>Khi cờ VSYNC phất lên (báo hiệu Camera đã vẽ xong 1 khung hình), chức năng của 2 hồ lập tức đảo ngược cho nhau (Ping-Pong). Hai luồng nước Đọc/Ghi sẽ không bao giờ giẫm chân lên nhau!</p>
+</li>
+<li>
+<p><strong>R-FIFO (Tháp nước áp lực cao khu dân cư):</strong>
+Màn hình VGA giống như một khu dân cư đông đúc. Khu dân cư này tiêu thụ nước liên tục với tốc độ cực kì khủng khiếp (25MHz) và tuyệt đối không chấp nhận việc bị ngắt quãng (nếu ngắt quãng, màn hình sẽ bị lệch pixel và nhiễu tĩnh ngay lập tức). 
+Do đó, ta không thể nối ống trực tiếp từ Hồ SDRAM (vốn có độ trễ lớn và thỉnh thoảng phải dừng lại để tự sạc điện - Auto Refresh) đến khu dân cư được. R-FIFO chính là một <strong>Tháp nước áp lực cao</strong> đặt ngay sát khu dân cư VGA. Tháp nước này luôn được giữ ở mức đầy, đảm bảo áp lực nước xả xuống VGA luôn mạnh mẽ, trơn tru và liên tục không ngừng nghỉ.</p>
+</li>
+<li>
+<p><strong>SDRAM Arbiter (Người Gác Đập tẫn mẫn):</strong>
+Đây chính là bộ não điều phối (Finite State Machine - FSM) của toàn bộ hệ thống. Arbiter đóng vai trò là một <strong>Người Gác Đập</strong> tay cầm bộ đàm, đứng giữa Hồ khổng lồ (SDRAM) và hai đầu bồn chứa (W-FIFO, R-FIFO). Người Gác Đập gác đập tuân thủ một quy tắc sinh tử:</p>
+</li>
+<li>Người Gác Đập nhìn về phía Tháp nước R-FIFO. Tháp nước luôn được <strong>ưu tiên tuyệt đối</strong>. Hễ thấy Tháp nước vơi đi một nửa, Người Gác Đập lập tức bật siêu máy bơm, rút đúng 256 khối nước từ Hồ SDRAM bơm tốc hành lên Tháp (Burst Read) để cứu khát cho khu dân cư VGA.</li>
+<li>Khi Tháp nước R-FIFO đã an toàn, Người Gác Đập mới quay sang nhìn Bồn trung chuyển W-FIFO. Nếu thấy bồn W-FIFO đã tích đủ 256 giọt nước từ suối Camera, Người Gác Đập sẽ mở van để hút trọn 256 giọt nước đó đổ vào Hồ SDRAM (Burst Write).</li>
+<li>Nếu thiếu đi Người Gác Đập (hoặc Người Gác Đập bị treo máy do lỗi logic mất tín hiệu phao đo), Tháp nước R-FIFO sẽ cạn kiệt, VGA sẽ "chết khát" và màn hình sẽ ngay lập tức hiện đầy bùn đất (dữ liệu rác)!</li>
+</ol>
+<hr />
+<blockquote>
+<p><em>Sau khi đã nắm vững bức tranh tổng quát và mô hình dữ liệu trừu tượng, trọng tâm tiếp theo sẽ đi sâu vào mổ xẻ chi tiết từng khối phần cứng, bắt đầu từ Khối khởi tạo cấu hình I2C.</em> </p>
+</blockquote>
+<hr />
+<h1>II. THIẾT KẾ KHỐI CẤU HÌNH I2C</h1>
+<h1>BÁO CÁO KIẾN TRÚC: LÕI GIAO TIẾP I2C (OVERSAMPLING 4X)</h1>
+<p>Báo cáo này tổng hợp lại những nguyên lý thiết kế cốt lõi của khối <code>i2c_master</code> và <code>i2c_clk_gen</code>, giải thích tại sao kiến trúc này đạt chuẩn công nghiệp và an toàn tuyệt đối về mặt định thời (Timing).</p>
+<hr />
+<h2>1. Bản chất Vật lý của I2C và Giới hạn Tần số</h2>
+<p>Dù FPGA (Master) chạy ở xung nhịp hệ thống rất cao (50MHz), ta tuyệt đối không thể ném 50MHz ra đường dây SCL của I2C. Có 2 lý do chí mạng:</p>
+<ol>
+<li><strong>Giới hạn của Camera (Slave):</strong> Mạch giải mã SCCB/I2C của phần lớn cảm biến (như OV7670) chỉ hỗ trợ tốc độ tối đa là <strong>400 KHz</strong>. </li>
+<li><strong>Đặc tính Mạch Cực máng (Open-Drain):</strong> Giao thức I2C bắt buộc phải dùng điện trở kéo lên (Pull-up Resistor). Khi FPGA thả dây SCL, điện áp mất một khoảng thời gian đáng kể để "bò" từ 0V lên 3.3V (do hằng số thời gian RC). Nếu chạy ở 50MHz, điện áp chưa kịp nhích lên đã bị dập xuống, dẫn đến tín hiệu bị phẳng lỳ ở 0V.</li>
+</ol>
+<p>Do đó, FPGA đóng vai trò như một <strong>Hộp số (Gearbox)</strong>, lấy xung 50MHz đếm chậm lại để gõ nhịp 400 KHz ra đường dây SCL.</p>
+<hr />
+<h2>2. Bí kíp "Clock Enable" (Tick 4x) - Tại sao không dùng bộ chia Clock?</h2>
+<p>Để tạo ra 400 KHz, cách ngây thơ nhất là chia 50MHz ra một xung vuông 400 KHz (Ripple Clock) và dùng nó cấp cho FSM. Tuy nhiên, kỹ thuật này gây ra trễ pha và lỗi Timing trầm trọng. </p>
+<p>Kiến trúc chuẩn công nghiệp giải quyết bằng cách <strong>chia hệ thống thành 2 khối đồng bộ hoàn toàn với 50MHz</strong>:</p>
+<h3>Khối <code>i2c_clk_gen</code> (Nhạc trưởng)</h3>
+<p>Khối này đếm xung 50MHz và tạo ra một xung chớp nhoáng (Tick) kéo dài đúng 1 chu kỳ 50MHz. Xung chớp này xuất hiện với tần số nhanh gấp <strong>4 LẦN</strong> tần số I2C cần thiết (ví dụ: I2C là 400KHz thì Tick là 1.6MHz).</p>
+<h3>Khối <code>i2c_master</code> (Nhạc công)</h3>
+<p>Bên trong <code>i2c_master</code> có một bộ đếm <code>tick_cnt</code> chạy từ <strong>0 đến 3</strong>. Mỗi lần nghe tiếng Tick, nó tăng thêm 1. Nhờ chia 1 chu kỳ I2C ra làm 4 phách, Master có thể vẽ ra sóng SCL và chốt dữ liệu SDA một cách an toàn tuyệt đối:</p>
+<ul>
+<li><strong>Phách 0 (<code>tick_cnt == 0</code>):</strong> Kéo <code>SCL = 0</code>. Tín hiệu chạm đáy. Đây là lúc an toàn để Master <strong>thay đổi dữ liệu trên dây SDA</strong>.</li>
+<li><strong>Phách 1 (<code>tick_cnt == 1</code>):</strong> Kéo <code>SCL = 1</code>. Tín hiệu vọt lên đỉnh (Cạnh lên).</li>
+<li><strong>Phách 2 (<code>tick_cnt == 2</code>):</strong> Giữ <code>SCL = 1</code>. Đỉnh điểm của sóng. Dữ liệu SDA lúc này ổn định nhất, không có nhiễu. Đây là <strong>thời điểm vàng để đọc SDA</strong> (VD: đọc bit ACK từ Slave).</li>
+<li><strong>Phách 3 (<code>tick_cnt == 3</code>):</strong> Kéo <code>SCL = 0</code>. Tín hiệu rơi xuống đáy (Cạnh xuống), kết thúc 1 chu kỳ bit.</li>
+</ul>
+<p>Nhìn từ bên ngoài, SCL lên xuống như một xung Clock 400KHz. Nhưng nhìn từ bên trong FPGA, SCL chỉ là một chân tín hiệu (Data) đang bật tắt dưới sự kiểm soát của FSM 50MHz.</p>
+<hr />
+<h2>3. Phân biệt "Đồng bộ (Synchronous)" và "Bất đồng bộ (Async CDC)"</h2>
+<p>Khối Hộp số I2C này <strong>KHÔNG</strong> hề sử dụng FIFO Bất đồng bộ (Dual-Clock Async FIFO), và cũng <strong>KHÔNG</strong> xử lý nhiễu đa xung nhịp (Clock Domain Crossing - CDC). </p>
+<ul>
+<li>Toàn bộ quá trình tạo sóng SCL đều nằm hoàn toàn trong <strong>"Vương quốc 50MHz"</strong> của FPGA. Thiết kế này là Đồng bộ hoàn toàn (Fully Synchronous).</li>
+<li><strong>Khi nào mới cần Async FIFO?</strong> Async FIFO chỉ xuất hiện khi có 2 vương quốc độc lập. Cụ thể trong dự án OV7670 này, Async FIFO sẽ được dùng ở khối <strong>Hứng ảnh (DVP Capture)</strong>, nơi mà xung nhịp <code>PCLK</code> (do Camera tự sinh ra) đụng độ với xung nhịp <code>50MHz</code> của FPGA. Lúc đó, FIFO đóng vai trò làm bãi đệm triệt tiêu sự lệch pha giữa 2 hệ thống độc lập này.</li>
+</ul>
+<h1>Nghệ thuật Thiết kế I2C Deep Dive</h1>
+<p>Giao thức I2C là một tiêu chuẩn phổ biến, nhưng để triển khai nó trên nền tảng logic số (như FPGA) một cách trơn tru, mạnh mẽ thì lại là một "nghệ thuật" thực sự. Tài liệu này chắt lọc những tư duy cốt lõi về thiết kế I2C Master, đặc biệt là khi giao tiếp với các thiết bị như Camera OV7670.</p>
+<h2>1. Cơ chế 4 Ticks của I2C: Tại sao phải chia làm 4 phách?</h2>
+<p>Khi viết máy trạng thái (FSM) cho I2C, một kỹ thuật cực kỳ hiệu quả là chia một chu kỳ xung nhịp SCL (I2C Clock) thành <strong>4 phách (4 ticks)</strong>. Thay vì cố gắng thay đổi dữ liệu (SDA) và xung nhịp (SCL) cùng một lúc, hệ thống rải chúng ra:</p>
+<ul>
+<li><strong>Tick 1 (SDA Change):</strong> Đổi trạng thái dây SDA khi dây SCL đang ở mức thấp. Việc thay đổi SDA lúc SCL thấp đảm bảo tính hợp lệ của dữ liệu (tránh vô tình tạo ra điều kiện Start/Stop).</li>
+<li><strong>Tick 2 (SCL Rise):</strong> Kéo dây SCL lên mức cao.</li>
+<li><strong>Tick 3 (SDA Sample/Read):</strong> Đọc giá trị trên dây SDA. Khoảng thời gian từ Tick 2 tới Tick 3 là thời gian SCL duy trì ở mức cao và SDA đã cực kỳ ổn định, là thời điểm hoàn hảo nhất để chốt (latch) dữ liệu từ Slave.</li>
+<li><strong>Tick 4 (SCL Fall):</strong> Kéo dây SCL xuống mức thấp trở lại, chuẩn bị cho chu kỳ tiếp theo.</li>
+</ul>
+<p>Việc chia thành 4 phách tạo ra những khoảng Margin an toàn, tránh vi phạm thời gian Setup (Setup time) và Hold (Hold time), giúp đường truyền cực kỳ bền bỉ kể cả khi nhiễu.</p>
+<h2>2. Nghệ thuật Clock Enable: Ảo giác tốc độ</h2>
+<p>Nhiều kỹ sư nhầm tưởng rằng để tạo ra I2C 400kHz, họ phải dùng mạch chia xung (Clock Divider/PLL) tạo ra một xung nhịp clock 400kHz độc lập để cung cấp cho module I2C. Điều này dẫn đến sự cố tồi tệ về Clock Domain Crossing (CDC).</p>
+<p><strong>Sự thật về ảo giác tốc độ:</strong> Toàn bộ hệ thống logic I2C Master thực chất vẫn chạy hoàn toàn trên xung nhịp gốc (ví dụ: <code>50MHz</code> của hệ thống). Để đáp ứng tốc độ <code>400kHz</code> của cảm biến, hệ thống sử dụng một bộ đếm (Counter) liên tục đếm trên nền xung 50MHz. Cứ mỗi <code>(50MHz / (400kHz * 4))</code> chu kỳ, bộ đếm sẽ bật một cờ <code>tick_4x</code> (chỉ kéo dài trong 1 chu kỳ 50MHz).
+Biến <code>tick_4x</code> này hoạt động như một cờ Clock Enable. Khối I2C Master luôn lấy clock 50MHz, nhưng chỉ chuyển trạng thái (chuyển sang Tick kế tiếp của I2C) khi <code>tick_4x</code> được bật. Việc này đảm bảo logic hoạt động hoàn toàn đồng bộ, an toàn, và chính xác mà không sinh ra một xung clock mới.</p>
+<h2>3. Giao tiếp Handshake (Bắt tay): Mối tình giữa Config và Master</h2>
+<p>Trong thiết kế cấu hình Camera, hệ thống có khối <code>OV7670_Config</code> (chứa các thông số thanh ghi ROM) và khối <code>i2c_master</code> (thực thi việc truyền I2C). Khối Config chạy cực kỳ nhanh (mỗi xung 50MHz là 1 bước), trong khi I2C Master mất hàng ngàn xung 50MHz mới truyền xong một byte. Làm sao để chúng làm việc với nhau mà không ách tắc?</p>
+<p>Giải pháp nằm ở tín hiệu Handshake (Bắt tay) gồm 2 cờ: <code>start</code> và <code>ready</code>.
+- Khối <code>i2c_master</code> bình thường luôn giữ cờ <code>ready = 1</code> để thông báo "nhóm phát triển rảnh".
+- Khối <code>OV7670_Config</code> khi cần truyền một lệnh cấu hình, nó đặt dữ liệu lên bus và bật cờ <code>start = 1</code> trong đúng 1 chu kỳ clock.
+- Ngay khi thấy <code>start</code>, <code>i2c_master</code> lập tức kéo <code>ready = 0</code> (Báo bận) và bắt đầu quá trình truyền tốn thời gian của mình.
+- Trong lúc đó, khối <code>OV7670_Config</code> nằm chờ (Wait State) cho đến khi <code>ready</code> quay trở lại mức <code>1</code>.
+- Khi truyền xong, <code>i2c_master</code> trả <code>ready = 1</code>. <code>OV7670_Config</code> thấy vậy liền lấy dữ liệu kế tiếp ra và chu kỳ lại tiếp tục.</p>
+<p>Nhờ cơ chế Handshake tinh tế này, dữ liệu không bao giờ bị dồn ứ hay mất mát, đảm bảo mọi thanh ghi đều được lập trình tuần tự và trọn vẹn, không hề "lỗi nhịp".</p>
+<hr />
+<blockquote>
+<p><em>Sau bước khởi tạo I2C, cảm biến bắt đầu xuất luồng dữ liệu quang học liên tục. Nhiệm vụ cốt lõi tiếp theo của hệ thống FPGA là thu nhận luồng dữ liệu này một cách toàn vẹn thông qua giao thức DVP Capture và điều phối qua bộ đệm SDRAM.</em> </p>
+</blockquote>
+<hr />
+<h1>III. LÝ THUYẾT DVP CAPTURE VÀ PING-PONG SDRAM</h1>
+<h2>1. Bản chất của khối DVP Capture</h2>
+<p>Khối DVP (Digital Video Port) Capture đóng vai trò là giao diện trực tiếp đầu tiên giữa FPGA và cảm biến quang học. Đây là cánh cổng thu nhận luồng dữ liệu liên tục từ thế giới thực. Bất kỳ sự sai lệch nào về xung nhịp (Clock) tại khối này đều sẽ dẫn đến việc sai lệch toàn bộ cấu trúc điểm ảnh của khung hình.</p>
+<h2>1. Kiến trúc tổng thể và Giải phẫu tín hiệu DVP chi tiết</h2>
+<p><strong>A. Nhận diện Đầu vào (Input) – "Nguyên liệu thô từ mỏ":</strong>
+Khối DVP Capture không tự sinh ra dữ liệu, nó đóng vai trò là "trạm kiểm lâm" đứng ở cửa rừng.
+- <strong>Nguồn gốc:</strong> Tín hiệu đến <em>trực tiếp từ phần cứng của Camera Sensor</em> đi qua các chân GPIO vật lý trên board mạch FPGA.
+- <strong>Thành phần cốt lõi:</strong>
+  - <code>PCLK</code> (Pixel Clock): Nhịp tim của camera (~24MHz). Cứ mỗi xung nhịp, camera sẽ nhả ra một khối dữ liệu nhỏ.
+  - <code>VSYNC</code> (Vertical Sync): Cờ lệnh của tổng tư lệnh báo hiệu bắt đầu một khung hình (Frame) mới. (High = Blanking, Low = Active Frame).
+  - <code>HREF</code> (Horizontal Reference): Cờ báo hiệu của đội trưởng dòng (Line) cho biết dữ liệu đang truyền là hợp lệ.
+  - <code>D[7:0]</code>: Bus dữ liệu 8-bit, chở từng mảnh màu sắc thô.</p>
+<blockquote>
+<p><strong>💡 GHI CHÚ QUAN TRỌNG:</strong>
+<strong>Góc Nhìn Lịch Sử &amp; Bản Chất Vật Lý: Tại sao lại có Vùng Đen (Blanking)?</strong></p>
+<p>Tín hiệu điều khiển DVP thực chất mang theo "DNA" di truyền từ thời đại <strong>Tivi CRT (Ống phóng tia âm cực)</strong>. Trong hệ thống CRT cổ điển, súng bắn electron sau khi quét xong một dòng (từ trái sang phải) cần một khoảng thời gian tắt tia sáng để "lùi nòng" về lề trái chuẩn bị quét dòng tiếp theo (H-Blanking), cũng như lùi từ đáy màn hình chạy ngược lên đỉnh màn hình (V-Blanking).</p>
+<p>Camera OV7670 tuy là chip cảm biến CMOS kỹ thuật số hiện đại, nhưng vẫn được thiết kế để <strong>giả lập y chang</strong> chuẩn Analog truyền thống này nhằm đảm bảo tính tương thích vạn năng.</p>
+<p><strong>Nguy cơ phần cứng tiềm ẩn:</strong> Trong khoảng thời gian "súng đang lùi" này (khi <code>HREF = 0</code>), các đường dây dữ liệu <code>D[7:0]</code> bị thả nổi và xả ra toàn "rác" điện tử (Garbage Data). Do đó, việc thiết kế bẫy <strong><code>if (href == 1'b1)</code> chính là màng lọc sinh tử</strong> — nếu bỏ qua cờ này, bộ đệm Async FIFO của hệ thống sẽ nuốt trọn rác, làm xô lệch tọa độ của toàn bộ các điểm ảnh ở các hàng bên dưới!</p>
+</blockquote>
+<p><strong>B. Nhận diện Đầu ra (Output) – "Sản phẩm tinh chế xuất xưởng":</strong>
+Khối này đứng trước Async FIFO và làm nhiệm vụ nhồi dữ liệu vào FIFO.
+- <strong>Đích đến:</strong> Đẩy thẳng vào cửa ngõ của <strong>Async FIFO</strong> (Khối đệm chuyển vùng Clock).
+- <strong>Thành phần:</strong>
+  - <code>pixel_data</code> (16-bit): Dữ liệu điểm ảnh RGB565 đã được lắp ráp hoàn chỉnh.
+  - <code>pixel_valid</code> (1-bit): Tín hiệu Write Enable (WEN) ra lệnh cho Async FIFO: "Có điểm ảnh chuẩn rồi, mở cửa cất vào kho ngay!".</p>
+<p><strong>C. Mô hình hóa Luồng dữ liệu (Data Flow) – "Trạm đóng gói kẹo trên băng chuyền":</strong>
+Hãy tưởng tượng luồng chảy dữ liệu của khối DVP Capture giống như một <strong>Trạm đóng gói kẹo 16-gram</strong> nằm trên một băng chuyền chạy với tốc độ <code>PCLK</code>.
+1. <strong>Băng chuyền chạy:</strong> Camera liên tục ném lên băng chuyền từng viên kẹo 8-gram (<code>D[7:0]</code>).
+2. <strong>Luật chơi (HREF):</strong> Trạm đóng gói chỉ được phép gắp kẹo đưa vào phễu khi đèn báo hiệu <code>HREF</code> sáng (dữ liệu hợp lệ).
+3. <strong>Nhào nặn (Lắp ráp):</strong> Vì mục tiêu là đóng gói 16-gram (Pixel RGB565), máy phải chờ gắp viên kẹo thứ nhất (Byte cao - cất vào túi tạm), sau đó đợi đến nhịp tiếp theo để gắp viên kẹo thứ hai (Byte thấp). 
+4. <strong>Xuất xưởng:</strong> Ngay tại nhịp thứ 2, máy ép 2 viên kẹo 8-gram lại với nhau thành 1 gói 16-gram (<code>pixel_data</code>), lập tức bật đèn xanh (<code>pixel_valid</code>) và quăng tọt vào thùng chứa phía sau (chính là Async FIFO). Quá trình này lặp lại liên tục cho đến hết hàng.
+5. <strong>Qua ngày mới (VSYNC):</strong> Khi cờ <code>VSYNC</code> phất lên, giám đốc xưởng hô to: "Xong một bức tranh kẹo! Quét sạch phễu chứa, reset bộ đếm, chuẩn bị đón ca mới!".</p>
+<h2>2. Nghệ thuật ghép ảnh RGB565: Bức Tranh 16-bit Từ Mảnh Ghép 8-bit</h2>
+<p>Camera truyền dữ liệu theo chuẩn màu RGB565, tức là một điểm ảnh (Pixel) cần 16-bit (5 bit Đỏ, 6 bit Xanh lá, 5 bit Xanh dương). Nhưng dây chuyền D[7:0] chỉ rộng 8-bit!
+<strong>Cách giải quyết của luồng dữ liệu (Data flow):</strong> 1 Pixel (16-bit) = 2 nhịp PCLK.
+- <strong>Nhịp PCLK thứ 1 (Bắt Byte Cao):</strong> Khi <code>HREF = 1</code>, ta bắt lấy 8-bit đầu tiên (R[4:0] và G[5:3]). Logic cần phải lưu nó vào một thanh ghi tạm (latch/buffer).
+- <strong>Nhịp PCLK thứ 2 (Bắt Byte Thấp):</strong> Bắt lấy 8-bit tiếp theo (G[2:0] và B[4:0]).
+- <strong>Đóng gói (Packing):</strong> Khối DVP sẽ ghép "Byte Cao" đang chờ sẵn và "Byte Thấp" vừa tới thành một từ 16-bit hoàn chỉnh và bật cờ tín hiệu <code>pixel_valid</code> để đẩy đi tiếp.</p>
+<h2>3. Cầu nối Async FIFO: Vượt Qua Khoảng Cách Không Gian - Thời Gian (Clock Domain)</h2>
+<p>Khối DVP Capture hoạt động <strong>HOÀN TOÀN</strong> dựa trên xung <strong>PCLK của Camera</strong>, KHÔNG DÙNG xung nội hệ thống của FPGA. 
+Nó đem dữ liệu 16-bit đóng gói đẩy vào một <strong>Async FIFO</strong> (Bộ đệm FIFO bất đồng bộ). Đầu kia của FIFO (Read Domain) sẽ được điều khiển bởi khối xử lý hệ thống bằng xung nhịp 50/100MHz. Thiết kế này giúp hai miền xung nhịp (Clock Domains) độc lập, không dẫm đạp lên nhau!</p>
+<hr />
+<blockquote>
+<p><strong>⚠️ CẢNH BÁO:</strong></p>
+<h2>⚠️ LUẬT THÉP: CẠM BẪY DỄ SAI VÀ LƯU Ý SỐNG CÒN</h2>
+<ol>
+<li><strong>CẠM BẪY CLOCK DOMAIN CROSSING (CDC):</strong> Tuyệt đối không lấy tín hiệu <code>pixel_data</code> ném thẳng vào RAM hoặc bộ xử lý ảnh mà bỏ qua Async FIFO. Hậu quả: Vi phạm Setup/Hold time sinh ra Metastability, màn hình sẽ nhiễu sọc (Tearing) hoặc hệ thống sập hoàn toàn!</li>
+<li><strong>LỖI LỆCH BYTE (BYTE MISALIGNMENT):</strong> Lúc khởi động, tín hiệu chưa ổn định, hệ thống rất dễ bắt nhầm "Byte Thấp" làm "Byte Cao". Hệ quả: Màu sắc loạn xạ, nhiễu hột cát. <em>Luật thép:</em> Phải luôn dựa vào sườn xuống của VSYNC (bắt đầu khung hình mới) để Reset lại cờ chọn Byte, đảm bảo Byte đầu tiên sau VSYNC chắc chắn là Byte Cao.</li>
+<li><strong>BÓNG MA RÁC ĐẦU KHUNG HÌNH:</strong> Khi VSYNC vừa chuyển trạng thái, đường truyền từ sensor mất một vài xung nhịp <code>PCLK</code> để thực sự ổn định. Nếu logic bắt ngay pixel đầu tiên không có độ trễ an toàn, hệ thống sẽ bắt nhầm "nhiễu" thành điểm ảnh đầu tiên.</li>
+<li><strong>CẠM BẪY PHÂN CỰC (POLARITY TRAP):</strong> Các loại sensor khác nhau quy định phân cực VSYNC/HREF khác nhau. Phải soi Datasheet kỹ xem Active-High hay Active-Low, nếu code mù quáng thì "trạm đóng gói kẹo" của hệ thống sẽ đứng gói rác!</li>
+</ol>
+</blockquote>
+<h2>4. Sự Khác Biệt Cốt Lõi: Đọc Ảnh Tĩnh (Static) vs. Xử Lý Camera Thời Gian Thực (Real-time)</h2>
+<p><strong>Sự ngỡ ngàng thường gặp:</strong> Tại sao khối Camera (Capture) chỉ nhận dữ liệu vào mà lại phải xuất ra địa chỉ <code>addr</code>? Để hiểu rõ, hệ thống cần nhìn vào sự khác biệt căn bản giữa hai hệ thống:</p>
+<p><strong>1. Đọc ảnh tĩnh từ ROM/Thẻ nhớ (Static)</strong>
+- Dữ liệu hình ảnh đã có sẵn và nằm im trong bộ nhớ.
+- Hệ thống chỉ có <strong>1 "công nhân" duy nhất</strong> là khối VGA Controller. 
+- Khối VGA tự động sinh ra tọa độ quét (Read Address) để móc dữ liệu từ bộ nhớ ra và hiển thị lên màn hình một cách tuần tự. Không ai tranh giành quyền truy cập bộ nhớ với nó.</p>
+<p><strong>2. Xử lý Camera thời gian thực (Real-time)</strong>
+- Đây là một "trận chiến" của <strong>2 người công nhân độc lập</strong> cùng hoạt động trên một cái kho SDRAM duy nhất (Shared Memory).
+  - <strong>Khối Camera (Đầu Bơm):</strong> Không chỉ nhận luồng tín hiệu từ OV7670, khối DVP Capture phải làm nhiệm vụ "Tiền xử lý": đóng gói các byte dữ liệu thành 1 pixel 16-bit RGB565 và quan trọng nhất là <strong>TỰ ĐỘNG sinh ra tọa độ cất kho (Write Address)</strong> để điền kín dữ liệu vào Frame Buffer một cách chính xác theo thời gian thực.
+  - <strong>Khối VGA (Đầu Hút):</strong> Chạy hoàn toàn độc lập với tốc độ riêng của màn hình. Nhiệm vụ của nó là liên tục sinh ra tọa độ lấy kho (Read Address) để hút dữ liệu ra và vẽ lên màn hình.</p>
+<p><strong>Nhấn mạnh:</strong> Việc giao phó cho khối DVP Capture đảm nhận vai trò "Tiền xử lý" (đóng gói 16-bit và cấp Write Address) là một thiết kế tối ưu. Nó giúp <strong>giảm tải hoàn toàn</strong> gánh nặng tính toán địa chỉ cất giữ cho SDRAM Controller và khối VGA, cho phép hệ thống vận hành trơn tru trong điều kiện thời gian thực khắt khe.</p>
+<h2>5. Nâng cấp Kiến trúc: Tại sao phải chuyển từ Line Buffer lên Ping-Pong Frame Buffer?</h2>
+<p>Trong các thiết kế xử lý ảnh tĩnh cơ bản, người ta thường dùng <strong>Line Buffer</strong> (chỉ đệm 1-2 hàng điểm ảnh) hoặc <strong>Single Buffer</strong> (chỉ dùng 1 kho duy nhất). Nhưng đối với hệ thống Camera thời gian thực, đây là một thiết kế tiềm ẩn rủi ro rất lớn mang tên <strong>Xé hình (Screen Tearing)</strong>.</p>
+<p><strong>1. Thảm họa chênh lệch tốc độ (Tearing Disaster)</strong>
+- Tốc độ "bơm" của Camera (Write): Chạy bằng xung <code>PCLK</code> ~24MHz, nhưng cần 2 nhịp mới ra được 1 pixel. Tốc độ bơm thực tế chỉ khoảng <strong>12 Triệu pixel/giây (30fps)</strong>.
+- Tốc độ "hút" của VGA (Read): Màn hình 640x480@60Hz yêu cầu chốt pixel liên tục ở mức <strong>25 Triệu pixel/giây (60fps)</strong>.
+- <strong>Hệ quả:</strong> Đầu hút VGA chạy nhanh gấp đôi đầu bơm Camera! Nếu bắt chúng dùng chung 1 cái Line Buffer hoặc 1 Frame Buffer duy nhất, VGA sẽ nhanh chóng "chạy vượt mặt" Camera. Khi đó trên màn hình, nửa trên sẽ là ảnh của khung hình mới, nửa dưới lại là ảnh của khung hình cũ chắp vá lại, gây giật lag và xé hình trầm trọng.</p>
+<p><strong>2. Giải pháp tối thượng: Ping-Pong Frame Buffer (Đệm kép luân phiên)</strong>
+Để giải quyết triệt để, hệ thống quy hoạch chip SDRAM thành 2 "mảnh đất" khổng lồ: <strong>Bank 0</strong> và <strong>Bank 1</strong> (sử dụng bit cao nhất của địa chỉ làm cờ chọn Bank).
+- <strong>Cơ chế cách ly:</strong> Khối Camera cứ việc hì hục đổ đất (Write) vào <strong>Bank 0</strong>, trong khi khối VGA cứ ung dung lấy đất (Read) từ <strong>Bank 1</strong> ra vẽ. Hai người công nhân làm việc ở 2 kho hoàn toàn cách biệt, không bao giờ dẫm chân lên nhau.
+- <strong>Cơ chế đổi ca (Swap Bank):</strong> Ngay khi sườn xuống của tín hiệu <code>camera_vsync</code> xuất hiện (báo hiệu Camera đã chụp xong trọn vẹn 1 bức ảnh vào Bank 0), khối SDRAM Arbiter sẽ lập tức hoán đổi vị trí:
+  - Khung hình tiếp theo, Camera chuyển sang cày cuốc ở <strong>Bank 1</strong>.
+  - VGA được cấp quyền sang <strong>Bank 0</strong> để hút bức ảnh mới nhất vừa ra lò.</p>
+<p>Thiết kế Ping-Pong Buffer này là tiêu chuẩn vàng (Golden Standard) trong công nghiệp truyền phát Video, giúp luồng ảnh chảy mượt mà 100% bất chấp sự sai lệch tốc độ giữa thiết bị thu và thiết bị phát!</p>
+<hr />
+<blockquote>
+<p><em>Quá trình triển khai lý thuyết thiết kế lên phần cứng vật lý luôn đi kèm với các thách thức về định thời (Timing) và đồng bộ. Dưới đây là Nhật ký khắc phục sự cố (Debug Log) ghi lại toàn bộ quá trình tối ưu hóa hệ thống, minh chứng cho phương pháp cô lập lỗi và phân tích tín hiệu (Waveform Analysis).</em> </p>
+</blockquote>
+<hr />
+        </div>
+        <div id="tab2" class="tab-content">
+<h1>IV. NHẬT KÝ SỬA LỖI (BUG HUNTING &amp; DEBUGGING)</h1>
+<h1>NHẬT KÝ SỬA LỖI CHẶNG 1 - HIỆN TƯỢNG MÀN HÌNH RÁC VÀ "CÁI BỒN NƯỚC KHÔNG PHAO"</h1>
+<h2>1. Hình ảnh hiện tượng</h2>
+<p><img alt="Lỗi nhiễu rác chặng 1" src="/C:/Users/ADMIN/.gemini/antigravity/brain/f70173ee-de75-4c0f-9230-f9c5a93ddc97/.user_uploaded/media_1789806150394.jpg" />
+<em>(Miêu tả: Màn hình hiển thị nhiễu hạt sọc ngang, có đường cắt dọc ở giữa X=320, hình ảnh tĩnh không thay đổi dù che hay mở camera).</em></p>
+<h2>2. Nguyên nhân gốc rễ (Lỗi Logic Trọng tài &amp; Khởi động Camera)</h2>
+<p>Dự án gặp phải 2 vấn đề nghiêm trọng chạy song song:</p>
+<ul>
+<li>
+<p><strong>Lỗi 1 (Camera chết lâm sàng):</strong> 
+  Cấp nguồn xong, vi mạch FPGA chạy quá nhanh, bắn lệnh cấu hình SCCB (I2C) ngay lập tức. Kết quả là Camera không kịp khởi động, chưa sẵn sàng nhận lệnh nên đã "bỏ qua" toàn bộ cấu hình.</p>
+</li>
+<li>
+<p><strong>Lỗi 2 (Treo máy trạng thái Arbiter do mất phao đo):</strong> 
+  Sử dụng nhầm module <code>async_fifo</code> cho R-FIFO (Read FIFO từ SDRAM ra VGA). Vì module <code>async_fifo</code> này không có cổng <code>count</code> xuất ra, dây tín hiệu <code>r_fifo_count</code> bị bỏ lửng (Floating = 0).</p>
+</li>
+</ul>
+<h2>3. Mô hình Trừu tượng (Mạng Lưới Bơm Nước)</h2>
+<p>Hãy tưởng tượng hệ thống FPGA của hệ thống là một mạng lưới cấp nước:</p>
+<ul>
+<li><strong>SDRAM:</strong> Là một cái Hồ Chứa Nước khổng lồ ở giữa.</li>
+<li><strong>Camera:</strong> Là dòng suối liên tục chảy nước thô vào. Nước này được hứng tạm vào cái Xô Đầu Vào (W-FIFO).</li>
+<li><strong>Màn hình VGA:</strong> Là một khu dân cư tiêu thụ nước liên tục không ngừng nghỉ. Nước cấp cho dân được chứa trong một cái Tháp Nước Đầu Ra (R-FIFO).</li>
+<li><strong>SDRAM Arbiter:</strong> Là Người Gác Đập (Trọng tài). Người Gác Đập này đứng ở giữa, tay cầm van xả và phải làm cùng lúc 2 nhiệm vụ:</li>
+<li>Nhiệm vụ 1: Bơm nước từ Hồ Chứa (SDRAM) lên Tháp Nước (R-FIFO) để dân (VGA) có nước xài.</li>
+<li>Nhiệm vụ 2: Hút nước từ Xô Đầu Vào (W-FIFO) đổ vào Hồ Chứa (SDRAM) để cất trữ ảnh từ Camera.</li>
+</ul>
+<p><strong>Luật làm việc của Người Gác Đập rất rõ ràng:</strong> Ưu tiên số 1 là dân không được chết khát (VGA mất dữ liệu là xé hình ngay). Người Gác Đập phải nhìn vào cái phao đo mực nước (<code>count</code>) trên Tháp Nước R-FIFO.
+- Nếu nước trong Tháp cạn (dưới 768 lít): Người Gác Đập cuống cuồng bơm nước từ Hồ lên Tháp.
+- Nếu nước trong Tháp đã đầy (trên 768 lít): Dân đã đủ nước xài tạm, Người Gác Đập mới thảnh thơi quay sang hút nước từ Camera đổ vào Hồ.</p>
+<p>💥 <strong>Bi kịch của lỗi sọc rác vừa rồi:</strong>
+Lúc trước, Agent 2 đã xây cho khu dân cư một cái Tháp Nước loại <code>async_fifo</code>. Đặc điểm của cái tháp này là kín bưng, KHÔNG HỀ CÓ phao đo mực nước (<code>count</code> bị bỏ trống). Vì không có dây tín hiệu báo về, Người Gác Đập luôn nhìn thấy thông số "Mực nước = 0". Người Gác Đập hoảng loạn tột độ, tưởng dân đang chết khát, nên dành 100% thời gian để bơm nước từ Hồ (SDRAM) lên Tháp (VGA). Người Gác Đập không bao giờ dám quay lưng lại để múc nước từ suối Camera! 
+Hậu quả: Camera chảy bao nhiêu nước đều bị vứt bỏ, Hồ chứa SDRAM thì không có giọt nước mới nào, chỉ chứa toàn bùn đất cặn bã từ lúc mới xây (dữ liệu rác lúc cấp nguồn). Khu dân cư VGA thì bị ép uống cái bùn đất đó -&gt; Sinh ra màn hình nhiễu sọc!</p>
+<h2>4. Tại sao lại đem fifo_sync trở lại?</h2>
+<ul>
+<li><strong>Khôi phục Phao Đo Mực Nước (<code>count</code>):</strong> Module <code>fifo_sync</code> là một cái tháp nước "thông minh" có tích hợp sẵn chân <code>count</code> báo mực nước chính xác theo từng chu kỳ. Khi lắp nó vào, Người Gác Đập (Arbiter) thấy được mức nước thực tế, biết lúc nào tháp đã đầy để yên tâm quay sang xử lý data cho Camera.</li>
+<li><strong>Về mặt thiết kế Clock:</strong></li>
+<li>Cái Xô Đầu Vào (W-FIFO) BẮT BUỘC phải dùng <code>async_fifo</code> vì nước từ suối Camera chảy vào theo nhịp riêng (<code>cam_pclk</code>), còn Người Gác Đập làm việc theo nhịp của Hồ (<code>clk_50m</code>).</li>
+<li>Nhưng cái Tháp Nước Đầu Ra (R-FIFO) thì khác! Người Gác Đập bơm nước vào Tháp bằng nhịp <code>clk_50m</code>, và khu dân cư VGA cũng rút nước ra bằng chính nhịp <code>clk_50m</code> (có chốt cửa <code>vga_ce</code>). Vì Đầu Vào và Đầu Ra chạy cùng một nhịp (Đồng bộ - Sync), hệ thống không cần dùng <code>async_fifo</code> phức tạp, mà dùng <code>fifo_sync</code> là chuẩn bài toán nhất, vừa nhẹ logic, vừa có sẵn biến <code>count</code>.</li>
+</ul>
+<h1>BÁO CÁO KỸ THUẬT CHẶNG 2: NGHẼN BĂNG THÔNG GHI SDRAM &amp; BẢN ĐỒ SỬA CHỮA HỆ THỐNG</h1>
+<h2>1. Hình ảnh thực tế chặng 2</h2>
+<p><img alt="Kết quả thực tế chặng 2" src="/C:/Users/ADMIN/.gemini/antigravity/brain/f70173ee-de75-4c0f-9230-f9c5a93ddc97/.user_uploaded/media_1789806907093.jpg" />
+- <strong>Hiện trạng quan sát:</strong> 
+  - Khoảng <strong>1/3 màn hình phía trên</strong> (~160 - 180 dòng quét) đã hiển thị tín hiệu thực tế từ ống kính Camera (có phân vùng sáng tối thực của trần nhà/phòng làm việc).
+  - Tuy nhiên, hình ảnh bị <strong>nhiễu sọc ngang rất nặng, xé hình và ám sắc tím</strong>.
+  - <strong>2/3 màn hình phía dưới</strong> vẫn trơ trơ dải nhiễu tĩnh mặc định của chip SDRAM.</p>
+<hr />
+<h2>2. Minh chứng đối chiếu: Tại sao Project Đọc Ảnh (UART) chạy được mà Project Camera lại gãy?</h2>
+<p>Để minh định rõ ràng vì sao hệ thống SDRAM hiện tại bị coi là đang chạy ở chế độ <strong>Single Write</strong>, hệ thống hãy trích xuất trực tiếp code gốc từ <code>D:\FPGA\Projects\project_2_SDRAM_VGA\SDRAM_VGA_final</code>:</p>
+<h3>Bằng chứng code gốc trong <code>sdram_controller.v</code>:</h3>
+<p>Tại dòng 134-135 của file gốc Project 2:</p>
+<pre><code class="language-verilog">// Mode: CAS=3, Read=Full Page, Write=Single Access (Bit 9 = 1)
+sdram_addr &lt;= 12'h237; 
+</code></pre>
+<p>Và tại dòng 203-204:</p>
+<pre><code class="language-verilog">WRITE_DATA: begin
+    // Write là Single Access
+</code></pre>
+<blockquote>
+<p><strong>Ý nghĩa phần cứng:</strong> Chuẩn JEDEC của chip SDRAM quy định: Khi nạp Mode Register với <strong>Bit 9 = 1</strong> (giá trị <code>12'h237</code>), SDRAM được thiết lập ở chế độ <strong>"Burst Read &amp; Single Write"</strong>. Nghĩa là: <strong>Chỉ có chiều ĐỌC (ra VGA) là chạy Burst 256, còn chiều GHI vẫn là ghi từng từ đơn lẻ (Single Access)!</strong></p>
+</blockquote>
+<h3>Bảng so sánh tương quan tốc độ giữa 2 Project:</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Tiêu chí so sánh</th>
+<th style="text-align: left;">Project 2: Đọc ảnh qua UART</th>
+<th style="text-align: left;">Project 3: Camera OV7670</th>
+<th style="text-align: left;">Nhận xét chênh lệch</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Nguồn phát dữ liệu</strong></td>
+<td style="text-align: left;">Cổng UART máy tính (115.200 baud)</td>
+<td style="text-align: left;">Cảm biến ảnh OV7670 (PCLK ~24MHz)</td>
+<td style="text-align: left;">Bản chất nguồn phát</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Tốc độ sinh điểm ảnh</strong></td>
+<td style="text-align: left;">$\approx 5.760$ pixel / giây</td>
+<td style="text-align: left;">$\approx 12.500.000$ pixel / giây</td>
+<td style="text-align: left;"><strong>Camera bắn nhanh gấp 2.170 lần UART!</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Thời gian giữa 2 pixel</strong></td>
+<td style="text-align: left;">$\approx 173.600\,\text{ns}$ ($173,6\,\mu\text{s}$)</td>
+<td style="text-align: left;">$\approx 80\,\text{ns}$</td>
+<td style="text-align: left;">Khoảng cách dòng dữ liệu</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Cơ chế ghi SDRAM</strong></td>
+<td style="text-align: left;">Single Write ($200\,\text{ns}$ / pixel)</td>
+<td style="text-align: left;">Single Write ($200\,\text{ns}$ / pixel)</td>
+<td style="text-align: left;">Tái sử dụng nguyên vẹn từ Project 2</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Tương quan Băng thông</strong></td>
+<td style="text-align: left;">SDRAM ghi <strong>nhanh gấp 868 lần</strong> UART</td>
+<td style="text-align: left;">SDRAM ghi <strong>chậm hơn 2,5 lần</strong> Camera!</td>
+<td style="text-align: left;"><strong>Điểm nghẽn chí tử xuất hiện!</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Trạng thái Bồn W-FIFO</strong></td>
+<td style="text-align: left;">Luôn rỗng (vừa có pixel là ghi ngay)</td>
+<td style="text-align: left;"><strong>Tràn bồn liên tục (<code>wfull = 1</code>)</strong></td>
+<td style="text-align: left;">Vỡ trận bồn đệm</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Kết quả hiển thị</strong></td>
+<td style="text-align: left;">Ảnh tĩnh mượt mà, đủ khung hình</td>
+<td style="text-align: left;">Chỉ ghi kịp 1/3 khung hình + xé sọc</td>
+<td style="text-align: left;">2/3 dưới là rác tĩnh</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>3. Phân tích 2 câu hỏi kỹ thuật của Sếp</h2>
+<h3>Câu hỏi 1: Tại sao chỉ bơm được ~1/3 màn hình?</h3>
+<ul>
+<li><strong>Thời gian 1 khung hình Camera (30 fps):</strong> $33,3\,\text{ms}$.</li>
+<li><strong>Thời gian VGA đọc chiếm bus SDRAM:</strong> Khoảng $6,4\,\text{ms}$ (ưu tiên cao hơn để không mất đồng bộ hiển thị).</li>
+<li><strong>Thời gian còn lại để ghi:</strong> $33,3\,\text{ms} - 6,4\,\text{ms} = 26,9\,\text{ms}$.</li>
+<li><strong>Tốc độ ghi Single Access:</strong> Mỗi pixel tốn 10 chu kỳ xung 50MHz ($200\,\text{ns}$).</li>
+<li><strong>Số pixel tối đa ghi kịp:</strong> $\frac{26,9\,\text{ms}}{200\,\text{ns}} \approx 134.500\,\text{pixel}$.</li>
+<li><strong>Tỷ lệ khung hình:</strong> $\frac{134.500}{307.200} \approx \mathbf{43,7\%}$ (Gần đúng 1/3 đến 2/5 chiều cao màn hình, khoảng 180 dòng đầu).</li>
+<li><strong>Lý do bị cắt ngang:</strong> Hết $33,3\,\text{ms}$, Camera phát xung <code>vsync_falling</code> kết thúc khung. Lệnh <code>write_addr &lt;= 0</code> trong Arbiter lập tức giật con trỏ về đỉnh màn hình để vẽ khung mới. Con trỏ ghi <strong>chưa bao giờ kịp chạm tới 2/3 diện tích phía dưới</strong>.</li>
+</ul>
+<h3>Câu hỏi 2: Tại sao hình ảnh lại bị nhiễu sọc ngang rất nặng?</h3>
+<ol>
+<li><strong>Tràn bồn W-FIFO gây vứt bỏ pixel:</strong> Nước vào bồn nhanh gấp 2,5 lần nước múc ra. Sau 2-3 dòng quét, W-FIFO bị đầy tràn. Mạch logic bắt buộc phải thả trôi (drop) các pixel tiếp theo.</li>
+<li><strong>Sụp đổ đồng bộ trục ngang (H-Sync Desynchronization):</strong> Khi bị rớt điểm ảnh, vị trí tọa độ của dòng này bị thụt lùi và tràn sang dòng khác, khiến các đường quét bị xé toạc theo phương ngang, tạo thành các vệt sóng gợn và sọc chuyển động liên tục.</li>
+<li><strong>Nhiễu hạt cảm biến:</strong> Thiếu sáng trong phòng kích hoạt AGC của OV7670 đẩy Gain lên cực đại, cộng thêm việc rớt byte làm sai lệch hệ màu RGB565 sinh ra sắc tím.</li>
+</ol>
+<hr />
+<h2>4. BẢN ĐỒ SỬA CHỮA HỆ THỐNG (SYSTEM REPAIR BLUEPRINT)</h2>
+<p>Để biến chiều GHI thành <strong>Burst Write (256 Words)</strong> tương đương với chiều ĐỌC, hệ thống sẽ được nâng cấp theo sơ đồ sau:</p>
+<pre><code>[Camera OV7670] 
+       │ (1 pixel / 80ns)
+       ▼
+[ W-FIFO (async_fifo) ] ── (Thêm cổng rcount báo mực nước ở miền 50MHz)
+       │
+       │ (Khi rcount &gt;= 256 words: Phát lệnh BURST WRITE)
+       ▼
+[ SDRAM Arbiter ] ─────── (Bắn 1 gói 256 words liên tục)
+       │
+       ▼
+[ SDRAM Controller ] ──── (Chuyển Mode Register sang 12'h037 - Burst Write)
+       │
+       ▼ (Tốc độ ghi tăng vọt lên 50 MWords/s: 1 pixel / 20ns!)
+[ Chip nhớ SDRAM ] ────── Ghi xong cả khung 640x480 chỉ mất 6,5ms!
+</code></pre>
+<h3>Chi tiết các bước thực hiện:</h3>
+<ol>
+<li><strong>Module <code>rptr_empty.v</code> &amp; <code>async_fifo.v</code>:</strong></li>
+<li>Xây dựng mạch giải mã Gray-to-Binary để chuyển <code>rq2_wptr</code> thành nhị phân.</li>
+<li>Tính toán <code>rcount = wptr_bin - rbin_reg</code> (mực nước khả dụng của W-FIFO ở miền 50MHz).</li>
+<li>
+<p>Xuất cổng <code>output wire [10:0] rcount</code>.</p>
+</li>
+<li>
+<p><strong>Module <code>sdram_controller.v</code>:</strong></p>
+</li>
+<li>Cấu hình lại Mode Register: Đổi <code>12'h237</code> (Single Write) $\rightarrow$ <code>12'h037</code> (Full Page / Programmed Burst Write).</li>
+<li>
+<p>Thiết kế trạng thái <code>WRITE_STREAM</code>: Bơm liên tục 256 pixel trong 256 nhịp xung nhịp (chỉ mất $5,12\,\mu\text{s}$ cho một khối 256 pixel thay vì $51,2\,\mu\text{s}$ như trước).</p>
+</li>
+<li>
+<p><strong>Module <code>sdram_arbiter.v</code>:</strong></p>
+</li>
+<li>Thay đổi điều kiện ghi: Không ghi nhắt gừng từng pixel khi <code>!w_fifo_empty</code> nữa, mà chờ <code>w_fifo_count &gt;= 256</code> mới kích hoạt 1 Burst Ghi.</li>
+<li>
+<p>Tăng địa chỉ theo khối: <code>write_addr &lt;= write_addr + 256</code>.</p>
+</li>
+<li>
+<p><strong>Module <code>ov7670_top.v</code>:</strong></p>
+</li>
+<li>Nối chân <code>rcount</code> từ <code>u_w_fifo</code> sang <code>w_fifo_count</code> của <code>u_sdram_arbiter</code>.</li>
+</ol>
+<h2>CHẶNG 3: SỰ CỐ "BÁC GÁC ĐẬP NHÂN BẢN NƯỚC" VÀ "DÒNG SUỐI HOA MẮT"</h2>
+<h2>1. Hiện tượng tại Khu dân cư (Màn hình VGA)</h2>
+<ul>
+<li>Khu dân cư đã nhận đủ nước (đầy đủ khung hình 640x480), nhưng nước lại bị đứt đoạn thành các cột dọc đặc cứng rộng 128px (nhiễu sọc dọc).</li>
+<li>Đặc biệt, sau khoảng 30 giây, các cột nước màu xanh lá này lại từ từ biến chất thành màu tím.</li>
+</ul>
+<h2>2. Bắt bệnh Hệ thống (Nguyên nhân lỗi)</h2>
+<ul>
+<li><strong>Tại sao lại có các cột nhiễu dọc 128px?</strong>
+  Ở chặng 2, ta đã trang bị cho <strong>Người Gác Đập (Arbiter)</strong> cỗ máy bơm xả cực lớn (Burst Write 256). Đáng lẽ khi bật máy, Người Gác Đập phải liên tục múc 256 gáo nước <em>khác nhau</em> từ <strong>Xô Đầu Vào (W-FIFO)</strong> để đổ vào <strong>Hồ Chứa (SDRAM)</strong>.
+  Tuy nhiên, do cơ chế hoạt động của Người Gác Đập bị "đóng băng" (biến <code>sys_data_in</code> khai báo là kiểu <code>reg</code> tĩnh), Người Gác Đập đã lười biếng: Người Gác Đập chỉ múc đúng <strong>1 gáo nước đầu tiên</strong>, rồi "copy/paste" y xì đúc gáo nước đó 256 lần đẩy vào Hồ Chứa!
+  Do khu dân cư (VGA) tiêu thụ mỗi hàng ngang là 640 pixel (640 = 256 * 2 + 128), các gáo nước nhân bản này khi bơm lên màn hình cứ bị xếp chồng và lặp lại, vỡ ra thành 5 cột dọc, mỗi cột chênh nhau đúng 128px.</li>
+<li><strong>Tại sao nước từ Xanh lại chuyển thành Tím sau 30s?</strong>
+  <strong>Dòng suối (Camera)</strong> của hệ thống có một bản năng tự nhiên là tự động cân bằng hóa học (Auto White Balance - AWB). Vì Người Gác Đập liên tục nhân bản và đổ vào Hồ những mảng nước màu xanh lá cây đặc quánh, hệ thống AWB của Suối khi nhìn xuống Hồ đã bị "hoa mắt" và hoảng hốt: <em>"Môi trường đang bị dư thừa màu xanh lá quá mức!"</em>.
+  Để bù trừ lại, Suối đã tự động tiết ra các chất hóa học màu Đỏ và Xanh dương (tổng hợp lại thành màu Tím Magenta). Quá trình "tiết hóa chất" này mất khoảng 30 giây, đó là lý do màn hình từ từ ngả sang màu tím lịm!</li>
+</ul>
+<h2>3. Bản đồ Sửa chữa (Cách Fix)</h2>
+<ul>
+<li><strong>Chữa bệnh "đóng băng" tay cho Người Gác Đập:</strong> Gỡ bỏ trạng thái <code>reg</code> cứng nhắc, thay thế cơ chế này bằng một đường ống dẫn trực tiếp trong suốt (khai báo <code>sys_data_in</code> thành <code>wire</code> và gán nối thẳng vào <code>w_fifo_data</code>). </li>
+<li><strong>Đồng bộ nhịp bơm:</strong> Tinh chỉnh lại tiếng còi báo hiệu (nhịp timing của <code>sys_wr_ack</code>) sao cho khớp tuyệt đối với tốc độ rớt xuống của từng giọt nước trong Xô Đầu Vào.</li>
+<li><strong>Kết quả:</strong> Giờ đây, mỗi khi Người Gác Đập bật máy bơm 256 nhịp, đường ống sẽ tự động hút trọn vẹn 256 giọt nước <em>tươi mới, liên tục và khác biệt</em> từ Xô (W-FIFO) chảy thẳng tuột vào Hồ Chứa (SDRAM). Không còn nước nhân bản, Dòng Suối (Camera) cũng sẽ hết bị hoa mắt và ngừng tiết ra màu tím!</li>
+</ul>
+<h1>BÁO CÁO KỸ THUẬT CHẶNG 3 - CHIẾN LƯỢC DEBUG BẰNG PHƯƠNG PHÁP CÔ LẬP VÀ PHÂN TÍCH WAVEFORM</h1>
+<h2>1. Đặt vấn đề</h2>
+<p><img alt="Lỗi xé hình và màu Neon" src="/C:/Users/ADMIN/.gemini/antigravity/brain/f70173ee-de75-4c0f-9230-f9c5a93ddc97/.user_uploaded/media_1789978085169.jpg" /></p>
+<p>Trong giai đoạn kiểm thử xuất hình, hệ thống gặp phải hiện tượng lỗi hiển thị nghiêm trọng: Hình ảnh xuất ra bị một vết nứt dọc tại cột ~280, khiến nửa trái và nửa phải của màn hình bị đảo lộn vĩnh viễn trên mọi khung hình. Lỗi này xuất hiện ổn định và không tự khắc phục qua các lần quét màn hình tiếp theo, cho thấy đây là một sự sai lệch có tính hệ thống chứ không phải nhiễu ngẫu nhiên. Ngoài ra, hình ảnh còn bị ám màu neon/tím dị thường.</p>
+<h2>2. Phương pháp tiếp cận (Thu hẹp phạm vi - Tối quan trọng)</h2>
+<p>Thay vì "mò mẫm" thử sai trên phần cứng (vốn tốn thời gian tổng hợp và không xác định được nguyên nhân gốc rễ), chiến lược debug được triển khai với tư duy phân mảnh hệ thống:
+* <strong>Cô lập các module:</strong> Tách biệt luồng dữ liệu thành các khối độc lập (Capture, W-FIFO, Arbiter, SDRAM Controller).
+* <strong>Mô phỏng chính xác (Cycle-accurate):</strong> Viết Testbench giả lập tín hiệu camera với định dạng DVP và bơm dữ liệu vào hệ thống. Sử dụng ModelSim để soi Waveform đến từng chu kỳ xung nhịp (clock cycle) tại các điểm nút giao tiếp giữa các module.
+* Phương pháp này cho phép bắt quả tang hành vi bất thường tại thời điểm tín hiệu chuẩn bị đi vào hoặc đi ra khỏi Async FIFO và SDRAM, mang lại bằng chứng xác đáng thay vì các giả định mơ hồ.</p>
+<h2>3. Phân tích căn nguyên (Root Cause Analysis - Điểm nhấn suy luận)</h2>
+<p>Quá trình soi Waveform đã làm sáng tỏ hiện tượng "Rác đọng":
+* <strong>Nguồn gốc lỗi:</strong> Do quá trình khởi động chưa ổn định hoặc nhiễu chớp nhoáng khi bật nguồn, một lượng pixel rác (cụ thể là 280 pixel) đã lọt vào Write-FIFO (W-FIFO) trước khi khung hình hợp lệ đầu tiên bắt đầu.
+* <strong>Toán học đằng sau sự tàn phá:</strong> 
+  * Một khung hình độ phân giải VGA chuẩn chứa $640 \times 480 = 307.200$ pixel.
+  * Trình điều khiển bộ nhớ (SDRAM Controller) ghi dữ liệu theo Burst Length là 256. 
+  * Do $307.200 \bmod 256 = 0$ (chia hết tuyệt đối), chu kỳ đọc/ghi diễn ra hoàn hảo. Tuy nhiên, 280 pixel rác ban đầu <strong>không bao giờ bị quét đi</strong> hay bị ghi đè, vì chúng đóng vai trò như một độ dời (offset) tịnh tiến mọi luồng dữ liệu theo sau nó.
+  * Nó tạo thành một <strong>"Độ trễ pha không gian"</strong> ($\Delta = 280$) không đổi. Tọa độ điểm ảnh $(0,0)$ của mọi khung hình hợp lệ tiếp theo đều bị đẩy lệch vĩnh viễn đi 280 nhịp địa chỉ trên bộ nhớ SDRAM. Kết quả là pixel thứ 280 của camera lại trở thành pixel số 0 trên màn hình, sinh ra vết nứt dọc chia đôi khung hình.</p>
+<h2>4. Giải pháp khắc phục</h2>
+<p>Dựa trên bằng chứng từ Waveform, chiến lược khắc phục tập trung vào việc dọn dẹp FIFO đúng thời điểm:
+* <strong>Xả đáy (Flush) FIFO:</strong> Tận dụng khoảng thời gian "Vertical Blanking" (khi tín hiệu <code>cam_vsync</code> bật lên High) giữa 2 khung hình để thực hiện thao tác reset toàn bộ W-FIFO. Bất kể có bao nhiêu rác đọng trước đó, FIFO đều được làm sạch trước khi khung hình mới bắt đầu.
+* <strong>Xử lý Clock Domain Crossing (CDC) an toàn:</strong> Tín hiệu <code>cam_vsync</code> sinh ra từ miền xung nhịp của camera (<code>PCLK</code>). Tuy nhiên, mặt đọc/ghi của FIFO và logic reset lại hoạt động trong miền xung nhịp hệ thống (50MHz). Để chống lại hiện tượng Metastability, <code>cam_vsync</code> được đi qua 2 tầng Flip-Flop (Double-Flop Synchronizer) trước khi trở thành tín hiệu kích hoạt lệnh reset FIFO.</p>
+<h3>Chi tiết mã nguồn (Module <code>ov7670_top.v</code>):</h3>
+<pre><code class="language-verilog">// ========================================================================
+// [FIX CHẶNG 3: XẢ ĐÁY W-FIFO KHI VSYNC CHUYỂN KHUNG HÌNH]
+// ========================================================================
+// 1. Khi cam_vsync = 1 (Vertical Blanking giữa 2 khung hình), Camera tạm dừng
+//    phát dữ liệu. Đây là khoảng lặng vàng để tháo cạn toàn bộ W-FIFO.
+// 2. Miền Ghi (wclk = cam_pclk): Dùng trực tiếp (~cam_vsync) làm wrst_n.
+// 3. Miền Đọc (rclk = clk_50m): Đồng bộ cam_vsync qua 2 tầng D-FF (CDC chuẩn)
+//    để tạo rrst_n an toàn, chống hiện tượng bất ổn định (Metastability).
+// ========================================================================
+
+// Khai báo 2 thanh ghi Flip-Flop để hứng tín hiệu từ miền Clock khác sang
+reg cam_vsync_r1, cam_vsync_r2;
+
+always @(posedge clk_50m or negedge sys_rst_n) begin
+    if (!sys_rst_n) begin
+        cam_vsync_r1 &lt;= 1'b0;
+        cam_vsync_r2 &lt;= 1'b0;
+    end else begin
+        // Dịch chuyển qua 2 tầng D-FF để lọc nhiễu Metastability
+        cam_vsync_r1 &lt;= cam_vsync;
+        cam_vsync_r2 &lt;= cam_vsync_r1;
+    end
+end
+
+// Tạo tín hiệu Reset độc lập cho 2 mặt của Async FIFO
+wire w_fifo_wrst_n = sys_rst_n &amp;&amp; (~cam_vsync);    // Mặt ghi (Camera domain)
+wire w_fifo_rrst_n = sys_rst_n &amp;&amp; (~cam_vsync_r2); // Mặt đọc (50MHz domain)
+</code></pre>
+<h1>BÁO CÁO KỸ THUẬT CHẶNG 4 - VƯỢT QUA ẢO ẢNH PHẦN MỀM VÀ CHIẾN THẮNG TRÊN TẦNG VẬT LÝ</h1>
+<p><strong>Tác giả:</strong> Kỹ sư Phát triển Hệ thống FPGA (Portfolio Case Study)</p>
+<h2>1. Điểm khởi đầu đánh lừa (The Illusion of Simplicity)</h2>
+<p><img alt="Ảo ảnh màu sắc" src="/C:/Users/ADMIN/.gemini/antigravity/brain/f70173ee-de75-4c0f-9230-f9c5a93ddc97/.user_uploaded/media_1789984404120.jpg" /></p>
+<p>Chặng 4 bắt đầu với một khung cảnh tưởng chừng như chiến thắng đã cận kề: Vết nứt sọc dọc chia đôi màn hình đã biến mất, hình bóng cánh tay người đã hiện rõ trên màn hình VGA. Thứ duy nhất gây khó chịu còn lại là màu sắc bị ám tím và xanh neon dị thường. Nhìn từ góc độ phần mềm, đây có vẻ như chỉ là một lỗi sai ma trận màu hoặc sai định dạng RGB565. Nhưng thực chất, đây lại là khởi đầu cho một chặng đường debug khắc nghiệt nhất của toàn bộ dự án.</p>
+<h2>2. Vòng lặp tuyệt vọng và Sự phản bội của Mô phỏng</h2>
+<p>Để sửa dải màu, việc kiểm tra đã được tiến hành thay đổi và thử nghiệm vô vàn các tập lệnh cấu hình I2C/SCCB khác nhau. Nhưng bất chấp mọi nỗ lực, màu sắc trên màn hình vẫn không hề suy xuyển.</p>
+<p>Với tư duy cô lập hệ thống, nhóm phát triển đã tạo hẳn một môi trường mô phỏng chuyên sâu (<code>sim_debug_color</code>) để rà soát từng dòng code. Kết quả mô phỏng (Waveform trên ModelSim) trả về <strong>hoàn hảo 100%</strong>. Mọi module hoạt động đúng nhịp, dữ liệu trích xuất chính xác. Thế nhưng, khi nạp xuống mạch thật, hình ảnh vẫn giữ nguyên màu sắc hỏng hóc.</p>
+<p>Đỉnh điểm của sự hỗn loạn là khi lỗi Chặng 3 (sọc dọc và trôi hình) – một lỗi tưởng chừng đã bị tiêu diệt hoàn toàn – đột ngột quay trở lại. </p>
+<p><img alt="Bệnh cũ tái phát" src="/C:/Users/ADMIN/.gemini/antigravity/brain/f70173ee-de75-4c0f-9230-f9c5a93ddc97/.user_uploaded/media_1789995593406.jpg" /></p>
+<p>Việc "Bệnh cũ tái phát cùng bệnh mới" khiến toàn bộ hệ thống trở nên rối tung, đe dọa đánh sập mọi nền tảng logic đã xây dựng.</p>
+<h2>3. Bước ngoặt tư duy (The Paradigm Shift) và Bằng chứng "Color Bar"</h2>
+<p>Đứng trước mớ bòng bong, giải pháp được đưa ra là lùi lại một bước và đưa ra một giả thuyết táo bạo: <strong>Cái sọc dọc và trôi hình không phải do module code của hệ thống có vấn đề!</strong>
+Để chứng minh điều đó, quá trình gỡ lỗi đã sử dụng phương án "Color Bar": Ép Camera xuất ra dải màu thử nghiệm nội bộ thông qua duy nhất 1 lệnh <code>COM7 = 0x06</code>. </p>
+<p><strong>Tại sao Color Bar lại là bằng chứng ngoại phạm hoàn hảo cho RTL?</strong> 
+Chế độ Color Bar là một bộ tạo ảnh nhân tạo tích hợp sẵn bên trong lõi DSP của OV7670, bỏ qua hoàn toàn mắt kính quang học để xuất ra một dải 8 màu sọc dọc hoàn hảo (Trắng, Vàng, Cyan, Lục, Magenta, Đỏ, Lam, Đen). Nếu màn hình VGA hiện lên được dải màu này một cách mượt mà, tĩnh lặng, không trôi, không xé... thì điều đó chứng minh tuyệt đối 100% rằng luồng dữ liệu (Data Pipeline) từ <code>ov7670_capture -&gt; W-FIFO -&gt; SDRAM Arbiter -&gt; R-FIFO -&gt; VGA</code> của dự án được thiết kế hoàn hảo.</p>
+<p>Tuy nhiên, màn hình vẫn không xuất hiện Color Bar mà vẫn là những hình ảnh ám màu cũ kỹ trôi nổi. Sự thất bại của một lệnh cấu hình đơn giản nhất đã mang lại một kết luận chói lòa: <strong>Mọi lệnh I2C từ FPGA gửi đi đều đang đi vào hư vô. Camera hoàn toàn không nhận được bất kỳ cấu hình nào!</strong></p>
+<h2>4. SignalTap II - Ánh sáng soi chiếu "Hộp đen" Tầng Vật lý</h2>
+<p>Để điều tra I2C, ban đầu nhóm phát triển đã gán các cờ báo vào hệ thống đèn LED của DE1:
+* <code>LED[9]</code> nối vào cờ <code>config_done</code> của module <code>ov7670_config.v</code> để xem FSM có đếm hết 156 lệnh hay không.
+* <code>LED[8]</code> nối vào biến <code>ack_error</code> (qua một mạch chốt latch) của module <code>i2c_master.v</code> để bắt lỗi từ chối lệnh.</p>
+<p>Thực tế là <code>LED[9]</code> luôn sáng rực rỡ và <code>LED[8]</code> luôn tắt. Nhưng <strong>sự ổn định của các cờ báo này là một lời nói dối</strong>. Chúng chỉ chứng minh rằng Máy trạng thái (FSM) nội bộ bằng Verilog đã chạy xong các vòng lặp logic. Nhưng việc biến nội bộ chuyển từ 0 sang 1 hoàn toàn không đồng nghĩa với việc điện áp vật lý trên các chân PIN <code>cam_sda</code> và <code>cam_scl</code> ngoài đời thực thực sự giao động 3.3V/0V. Tín hiệu vật lý vẫn là một "hộp đen" mù mịt.</p>
+<p>Đó là lúc nhóm phát triển rút ra vũ khí tối thượng: <strong>SignalTap II Logic Analyzer</strong>. Khác với Waveform lý tưởng hóa của ModelSim, SignalTap cấy trực tiếp vào lõi Silicon để bắt tín hiệu điện áp thực.</p>
+<p><strong>Phân tích kỹ thuật trên SignalTap:</strong>
+Để bắt được tín hiệu, cấu hình đã được thiết lập Trigger theo đúng định nghĩa tín hiệu START của giao thức I2C: <strong>SDA tụt từ 1 xuống 0 trong khi SCL vẫn đang giữ ở mức 1</strong>. Khi SignalTap bắt được đúng khoảnh khắc này, nó khẳng định Module Master của dự án đã bắt đầu chu trình truyền tải thành công. </p>
+<p><strong>Tầm quan trọng của Bit thứ 9 (ACK):</strong>
+Trong I2C, 8 chu kỳ xung nhịp đầu tiên dùng để Master truyền 8 bit dữ liệu. Nhưng chu kỳ xung nhịp thứ 9 là khoảnh khắc Master buông tay để Slave (Camera) kéo dây SDA xuống mức 0, gọi là tín hiệu <strong>ACK (Acknowledge - Xác nhận)</strong>. 
+Trong module <code>i2c_master.v</code>, biến trạng thái này mang tên <code>ack_error</code>. Nếu ở chu kỳ thứ 9 mà SDA vẫn ở mức 1 (NACK), biến <code>ack_error</code> sẽ dựng lên 1 báo lỗi. Đây là cái bắt tay sinh tử quyết định sự thành bại của toàn bộ chu trình giao tiếp phần cứng.</p>
+<h2>5. Bắt quả tang kẻ thù (The Missing Pull-up)</h2>
+<p>Khi giăng bẫy SignalTap để đo chân <code>cam_sda</code> và <code>cam_scl</code>, nhóm phát triển đã bắt được quả tang một hiện tượng không thể tin nổi:</p>
+<p><img alt="Bắt quả tang I2C kẹt 0" src="/C:/Users/ADMIN/.gemini/antigravity/brain/f70173ee-de75-4c0f-9230-f9c5a93ddc97/.user_uploaded/media_1790416947117.png" /></p>
+<p>Như người thiết kế có thể thấy ở bức ảnh trên: Ngay sau khi lệnh START được phát ra, tín hiệu SDA tụt xuống mức logic 0 và <strong>nằm lì ở đó trong suốt toàn bộ chu kỳ truyền</strong>, mặc dù SCL vẫn đập liên tục.</p>
+<p><strong>Lý giải nguyên nhân:</strong>
+Bản chất của chân SDA trong giao thức I2C là cực máng hở (Open-Drain). Nó chỉ có thể kéo xuống 0V (GND), và cần một <strong>Điện trở kéo lên (Pull-up Resistor)</strong> để nhả về mức 3.3V (Logic 1). Module Camera rẻ tiền đã bị nhà sản xuất cắt bớt con điện trở này!
+<em>Cái bẫy chí mạng:</em> Vì dây SDA bị chết bẹp ở 0V, mà trong I2C mức 0 lại mang nghĩa là ACK. Bỗng nhiên, cái biến <code>ack_error</code> trong module <code>i2c_master.v</code> liên tục lấy mẫu được mức 0 và báo cáo với hệ thống rằng: "Mọi thứ vẫn đang hoàn hảo, Camera đã ACK". Hậu quả là FPGA cứ lầm lũi gửi hết 156 lệnh cấu hình vào khoảng không, trong khi Camera thực chất mù điếc!</p>
+<h2>6. Giải pháp Tầng Điện tử và Cú chốt hạ lịch sử</h2>
+<p>Để khắc phục sự thiếu sót của phần cứng, hệ thống đã được ép FPGA phải tự xuất điện trở nội bộ thông qua lệnh cấu hình QSF: <code>set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON</code>.
+Nhưng 40k Ohm nội bộ là quá yếu để kéo cáp lên mức 1 kịp thời ở tốc độ 400kHz. Lập luận từ góc độ điện tử tương tự (Analog), hệ thống đã được chủ động hạ xung nhịp I2C xuống <strong>100kHz</strong> để cho tín hiệu có đủ thời gian (Rise time) sạc đầy lên 3.3V.</p>
+<p>Và đây là bức tranh tín hiệu SignalTap sau khi được chữa lành:
+<img alt="Tín hiệu I2C thành công" src="/C:/Users/ADMIN/.gemini/antigravity/brain/f70173ee-de75-4c0f-9230-f9c5a93ddc97/.user_uploaded/media_1790417358515.png" />
+Tín hiệu SDA đã lên xuống hoàn hảo! I2C Master báo lỗi NACK chính xác khi có biến. </p>
+<h2>7. Khóa chặt quang học và Chinh phục nhiễu dây dẫn (Signal Integrity)</h2>
+<p>Mặc dù I2C đã hoạt động, nhưng khi ép xuất Color Bar, hình ảnh vẫn còn hiện tượng giằng co với quang học thực tế và chớp nháy (Flickering) liên tục. Để đạt được sự hoàn hảo tuyệt đối, hai giải pháp cuối cùng được áp dụng là 2 đòn đánh cuối cùng:</p>
+<p><strong>Đòn 1: Combo lệnh phong ấn quang học (I2C)</strong>
+nhóm phát triển cấu hình lại bộ lệnh I2C để cô lập hoàn toàn mạch DSP nội bộ khỏi cảm biến quang:
+* <code>COM17 = 0x08</code>, <code>SCALING_XSC = 0xBA</code>, <code>SCALING_YSC = 0xB5</code>: Ép các khối thu phóng và xử lý số kích hoạt Test Pattern.
+* <code>COM8 = 0xC0</code>: Tắt hoàn toàn bộ phơi sáng (AEC), khuếch đại (AGC) và cân bằng trắng (AWB) để camera ngừng "tẩu hỏa nhập ma" khi bị bịt mắt.
+Lúc này, cờ <code>ack_error</code> (LED 8) đã tắt lịm, chứng minh combo lệnh khó nhằn trên lọt 100% vào trong camera.</p>
+<p><strong>Đòn 2: Giải quyết nhiễu xung nhịp Jumper (Signal Integrity)</strong>
+Màn hình vẫn chớp nháy là do tín hiệu <code>cam_pclk</code> (24MHz) chạy qua cáp Jumper sinh ra hiện tượng dội sóng (Ringing). Bộ đệm Clock nhạy bén của FPGA nhận diện nhầm các gợn sóng này thành 2-3 xung chớp nhoáng (Double Clocking), phá vỡ logic đẩy dữ liệu Ping-Pong.
+<em>Giải pháp vật lý:</em> Rút ngắn tối đa sợi Jumper và xoắn cáp <code>cam_pclk</code> chung với một dây Mass (GND) để tạo thành cặp cáp chống nhiễu từ trường (Twisted pair).</p>
+<p>Và đây là kết quả cuối cùng - minh chứng hùng hồn nhất cho một hệ thống FPGA hoàn hảo (Pixel-perfect):
+<img alt="Thành quả Dải màu hoàn hảo" src="/C:/Users/ADMIN/.gemini/antigravity/brain/22af90c4-2e8c-4346-8c08-0fd84599f6bd/.user_uploaded/media_1790528020826.png" /></p>
+<p>Dải màu hiện ra tĩnh lặng như một mặt hồ, 160 lệnh cấu hình I2C đã hoạt động hoàn hảo, và toàn bộ luồng dữ liệu Async FIFO + SDRAM Ping-Pong Controller đã chứng minh được sự kiên cố của nó.</p>
+<h2>8. Bài học đắt giá cho một Kỹ sư Hệ thống</h2>
+<p>Chặng 4 là một bài test tâm lý và kỹ năng cực độ. Nó chứng minh rằng:
+1. <strong>Kiến thức liên ngành là sức mạnh:</strong> Một kỹ sư thiết kế Digital (RTL) sẽ kẹt ở đây mãi mãi nếu không có nền tảng về Điện tử Tương tự (Sự xả nạp RC, Open-Drain, Pull-up, Signal Integrity).
+2. <strong>Luôn nghi ngờ Hộp đen vật lý:</strong> Đèn LED và Simulation chỉ chứng minh thiết kế logic của hệ thống đúng, chứ không chứng minh mạch điện vật lý của hệ thống đang sống. 
+3. <strong>Kỹ năng gỡ lỗi là nghệ thuật đặt câu hỏi:</strong> Khi bị lạc giữa muôn trùng bug, việc quay về lệnh đơn giản nhất (Color Bar) và soi chiếu tín hiệu vật lý cơ bản (SignalTap) chính là la bàn dẫn đến thành công.</p>
+<h1>CHẶNG 5: HÀNH TRÌNH TÌM DIỆT BUG SỌC DỌC KINH ĐIỂN - KHI KỸ SƯ ÉP PHẦN CỨNG LÊN TIẾNG</h1>
+<p><strong>Tài liệu Phân tích Kỹ thuật (Technical Post-Mortem Report)</strong>
+<em>Dự án: Hệ thống Camera OV7670 truyền phát Video thời gian thực qua SDRAM lên màn hình VGA</em></p>
+<hr />
+<h2>1. Mô tả Hiện tượng (The Symptom)</h2>
+<p>Sau khi thiết lập thành công luồng dữ liệu (Data Pipeline) hoàn chỉnh từ Camera OV7670 đi qua SDRAM và xuất lên màn hình VGA, hệ thống phát sinh một lỗi hiển thị nghiêm trọng:
+Khung hình xuất hiện <strong>chính xác 5 đường sọc dọc (vết nứt/gãy ảnh)</strong> phân bố đều đặn. 
+- Hình ảnh thu được từ Camera (văn phòng, đồ vật) vẫn hiển thị với màu sắc và độ sáng ổn định.
+- Tuy nhiên, tại các vết nứt này, các điểm ảnh (pixel) bị lệch tọa độ, tạo thành 5 đường cản mờ chia cắt màn hình thành các cột dọc.</p>
+<p><strong>Hình ảnh thực tế lỗi 5 sọc dọc:</strong>
+<img alt="Lỗi 5 Sọc Dọc" src="5_stripes_bug.png" /></p>
+<p>Đứng trước một hệ thống phức tạp bao gồm hàng nghìn dòng code và hàng chục block logic chạy đa xung nhịp (Clock Domains: 24MHz, 50MHz, 25MHz), việc mò mẫm sửa code trực tiếp là vô nghĩa. giải pháp được đưa ra là áp dụng <strong>Chiến lược Cô lập Lỗi (Fault Isolation Strategy)</strong> vô cùng khắt khe.</p>
+<hr />
+<h2>2. Quá trình Cô lập và Thu hẹp Phạm vi (The Isolation Process)</h2>
+<p>Đây là chuỗi những ngày "vò đầu bứt tai", chia cắt hệ thống ra làm nhiều mảnh để ép phần cứng phải tự chỉ điểm ra nơi giấu bug.</p>
+<h3>Bước 1: Test "Màn Hình Đỏ" (Khẳng định VGA Timing)</h3>
+<p>toàn bộ hệ thống được ngắt hệ thống Camera và SDRAM, ép cứng ngõ ra của VGA Controller (<code>vga_r</code>, <code>vga_g</code>, <code>vga_b</code>) thành một màu Đỏ thuần nhất.
+* <strong>Kết quả:</strong> Màn hình đỏ chót, phẳng lì, không hề có gợn sóng hay sọc dọc. 
+* <strong>Kết luận:</strong> Tín hiệu HSYNC, VSYNC và bộ đếm pixel của VGA Controller hoạt động hoàn hảo 100%.</p>
+<h3>Bước 2: Bơm Dữ Liệu Ảo vào R-FIFO (Giải oan cho Khối Đọc Cuối)</h3>
+<p>Để kiểm tra khối <code>fifo_sync</code> (R-FIFO - bồn đệm dữ liệu trước khi lên màn hình), kết nối được ngắt nó khỏi SDRAM. Thay vào đó, một mạch giả lập đã được viết mạch giả lập (Test Pattern Generator) tạo ra 8 dải màu chuẩn (Color Bars) và bơm trực tiếp vào R-FIFO.
+* <strong>Kết quả:</strong> 8 dải màu hiện lên màn hình sắc nét, mượt mà, <strong>không hề có 5 sọc dọc</strong>.
+* <strong>Kết luận:</strong> Khối R-FIFO và quá trình rải pixel từ FIFO lên màn hình VGA hoàn toàn vô tội.</p>
+<h3>Bước 3: Bơm Dữ Liệu Ảo vào W-FIFO (Lật Mặt Kẻ Thủ Ác)</h3>
+<p>Lúc này, kết nối được thiết lập SDRAM trở lại. Tuy nhiên, thay vì dùng Camera thật (để loại trừ nhiễu tín hiệu vật lý từ DVP Capture), dải màu được bơm ảo 8 màu đó vào <strong>W-FIFO (Bồn đệm đầu vào)</strong>. Dữ liệu ảo buộc phải chảy qua W-FIFO $\rightarrow$ SDRAM Arbiter $\rightarrow$ SDRAM Chip $\rightarrow$ R-FIFO $\rightarrow$ VGA.
+* <strong>Kết quả:</strong> <strong>5 Sọc dọc xuất hiện trở lại trên nền dải màu ảo!</strong>
+* <strong>Kết luận sống còn:</strong> Bug 100% KHÔNG NẰM Ở CAMERA, KHÔNG NẰM Ở VGA, mà giấu mình sâu bên trong <strong>Bộ điều khiển SDRAM (SDRAM Controller / Arbiter)</strong>.</p>
+<hr />
+<h2>4. Cú Lừa Của Giai Đoạn "Write Burst" (The Misdirection)</h2>
+<p>Sau khi khoanh vùng được SDRAM, quá trình phân tích được thực hiện bằng cách dùng ModelSim soi Waveform chu kỳ GHI (Write).
+kết quả phân tích cho thấy một lỗi logic: Từ cuối cùng (Word 255) bị ghi đè bởi Word 0. Mừng rỡ tưởng chừng đã bắt được bệnh, lệnh được dời <code>BURST_TERM</code> lên sớm 1 nhịp để ép SDRAM dừng ghi đúng lúc.
+* <strong>Kết quả thực tế:</strong> Thảm họa! Màn hình xé toạc, hình ảnh nháy loạn xạ.
+* <strong>Bài học đắt giá:</strong> Cú sửa đó là SAI. Trên mạch vật lý, lệnh Ghi của hệ thống vốn dĩ đã tuân thủ Timing hoàn hảo của Datasheet. Sự thất bại này ép hệ thống phải lập tức Roll-back (khôi phục code) và chuyển hướng điều tra 180 độ sang <strong>Chu kỳ ĐỌC (Read Burst)</strong>.</p>
+<hr />
+<h2>5. Chân Tướng Sự Thật: Lỗ Hổng CAS Latency</h2>
+<p>Mọi manh mối hội tụ về trạng thái <code>READ_CMD</code> trong <code>sdram_controller.v</code>.
+Chip SDRAM IS42S16400 (trên kit DE1) được cấu hình với độ trễ <strong>CAS Latency = 3</strong>. Chuẩn kỹ thuật quy định: Kể từ lúc phát lệnh ĐỌC (READ), phải chờ đếm đúng 3 nhịp xung clock thì data mới bắt đầu trào ra ở chân linh kiện.</p>
+<p>Tuy nhiên, đoạn code cũ lại được viết như sau:</p>
+<pre><code class="language-verilog">    // Chờ CAS=3 (T3 data mới tới)
+    if(delay_timer == 16'd2) begin
+        current_state &lt;= READ_STREAM;
+</code></pre>
+<p>Biến <code>delay_timer</code> đếm từ 0, nhưng nó chỉ đợi đến <strong>nhịp thứ 2 (<code>16'd2</code>)</strong> là đã vội vàng chuyển sang state <code>READ_STREAM</code> để lấy mẫu dữ liệu. Sự "nôn nóng" chênh lệch đúng 1 nhịp clock (10ns) này đã tạo ra một phản ứng dây chuyền tàn khốc cho toàn bộ 256 pixel của chu kỳ Burst:</p>
+<ol>
+<li><strong>Nhịp 0 (Đớp rác):</strong> FPGA đớp dữ liệu sớm 1 nhịp khi SDRAM chưa nhả data. Chân DQ lơ lửng (High-Z) khiến FPGA lưu vào R-FIFO một <strong>Pixel Rác (Garbage)</strong>.</li>
+<li><strong>Nhịp 1 đến 254 (Bị đẩy lùi):</strong> FPGA tiếp tục đớp, lấy được Word 0 đến Word 253.</li>
+<li><strong>Nhịp 255 (Kết thúc oan uổng):</strong> Đáng lẽ nhịp cuối cùng này sẽ đớp Word 254, nhưng FPGA đếm đủ 256 lần lấy mẫu nên tự động đóng cửa state <code>READ_STREAM</code>. Word 254 và Word 255 vĩnh viễn bị bỏ rơi lại SDRAM.</li>
+</ol>
+<p><strong>Lý giải Toán học của "5 Sọc Dọc":</strong>
+Chuỗi dữ liệu bị biến dạng thành: <code>[Rác, Word 0, Word 1, ... Word 254]</code>.
+Cứ mỗi 256 pixel (1 Burst), khung hình lại bị <strong>nhét thêm 1 pixel rác vào đầu và bị cắt cụt 1 pixel thật ở cuối</strong>.
+Vì màn hình VGA rộng 640 pixel ($640 = 256 + 256 + 128$), các khối 256 pixel bị lệch này khi xếp cạnh nhau sẽ tạo ra độ chênh (Shift) tọa độ điểm ảnh. Sự đứt gãy này xảy ra chính xác tại các giao điểm: <strong>X = 127, 255, 383, 511, 639</strong>.
+Con số 5 sọc dọc khớp hoàn hảo 100% với nguyên lý toán học này!</p>
+<hr />
+<h2>6. The Fix - Lát Cắt Lịch Sử</h2>
+<p>Giải pháp cho chuỗi ngày vất vả này chỉ nằm gọn trong 1 ký tự duy nhất:
+Trả lại sự công bằng cho thông số CAS Latency bằng cách tăng biến chờ thêm 1 nhịp clock:</p>
+<p><strong>Đã sửa thành:</strong></p>
+<pre><code class="language-verilog">    // Phải chờ đủ d=3 để khớp hoàn toàn với CAS Latency = 3
+    if(delay_timer == 16'd3) begin 
+        current_state &lt;= READ_STREAM;
+</code></pre>
+<p>Ngay sau khi ấn Compile và nạp xuống FPGA, chuỗi lấy mẫu 256 pixel khớp khít như những bánh răng cơ khí Thụy Sĩ. Pixel rác biến mất, dữ liệu đuôi được lấy trọn vẹn, và 5 sọc dọc vỡ hình bốc hơi hoàn toàn khỏi màn hình.</p>
+<p>Hệ thống Camera OV7670 chính thức vượt qua rào cản phần cứng khó nhằn nhất, chạy ổn định với Framebuffer SDRAM Ping-Pong tuyệt đối mượt mà!</p>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(tabId) {
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            
+            document.getElementById('btn-' + tabId).classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+            
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        
+        document.addEventListener("DOMContentLoaded", function() {
+            if (typeof mermaid !== 'undefined') {
+                mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+            }
+        });
+    </script>
+
+    
+    
+
+
+    <!-- IMAGE LIGHTBOX HTML -->
+    <div id="img-lightbox">
+        <span class="lightbox-close" id="lightbox-close">&times;</span>
+        <div class="lightbox-hint">🔍 Cuộn chuột: Phóng to/Thu nhỏ | ✋ Kéo chuột: Di chuyển sơ đồ khối</div>
+        <img id="lightbox-img-element" src="" alt="Zoomed Diagram">
+    </div>
+
+    <!-- IMAGE LIGHTBOX LOGIC -->
+    <script>
+        const zoomableImgs = document.querySelectorAll('.zoomable-img');
+        const lightbox = document.getElementById('img-lightbox');
+        const lightboxImg = document.getElementById('lightbox-img-element');
+        const closeBtn = document.getElementById('lightbox-close');
+        
+        let scale = 1;
+        let isDragging = false;
+        let startX, startY;
+        let translateX = 0, translateY = 0;
+        let currentRAF;
+        
+        zoomableImgs.forEach(img => {
+            img.addEventListener('click', function(e) {
+                lightboxImg.src = this.src;
+                lightbox.style.display = 'flex';
+                
+                // Căn chỉnh sao cho VỪA KHÍT màn hình (Fit to Screen) ngay khi vừa mở lên
+                // Không bị che lấp 2 bên
+                const windowRatio = window.innerWidth / window.innerHeight;
+                const imgRatio = this.naturalWidth / this.naturalHeight;
+                
+                // Dùng 95% màn hình để có viền lề mỏng đẹp
+                if (imgRatio > windowRatio) {
+                    scale = (window.innerWidth * 0.95) / this.naturalWidth;
+                } else {
+                    scale = (window.innerHeight * 0.95) / this.naturalHeight;
+                }
+                
+                translateX = 0;
+                translateY = 0;
+                updateTransform();
+            });
+        });
+        
+        closeBtn.addEventListener('click', () => {
+            lightbox.style.display = 'none';
+        });
+        
+        lightbox.addEventListener('click', (e) => {
+            if (e.target === lightbox) {
+                lightbox.style.display = 'none';
+            }
+        });
+        
+        lightbox.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomSensitivity = 0.15;
+            const delta = e.deltaY < 0 ? (1 + zoomSensitivity) : (1 - zoomSensitivity);
+            
+            const rect = lightboxImg.getBoundingClientRect();
+            const mouseX = e.clientX - (rect.left + rect.width / 2);
+            const mouseY = e.clientY - (rect.top + rect.height / 2);
+            
+            const prevScale = scale;
+            scale *= delta;
+            
+            // Allow zooming in up to 3x of original 4200px size
+            scale = Math.max(0.05, Math.min(scale, 3.0));
+            
+            const scaleRatio = scale / prevScale;
+            translateX -= mouseX * (scaleRatio - 1) / prevScale;
+            translateY -= mouseY * (scaleRatio - 1) / prevScale;
+            
+            updateTransform();
+        });
+        
+        lightbox.addEventListener('mousedown', (e) => {
+            if (e.target !== closeBtn) {
+                e.preventDefault(); 
+                isDragging = true;
+                startX = e.clientX - translateX;
+                startY = e.clientY - translateY;
+            }
+        });
+        
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+        
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            if(currentRAF) cancelAnimationFrame(currentRAF);
+            
+            currentRAF = requestAnimationFrame(() => {
+                translateX = e.clientX - startX;
+                translateY = e.clientY - startY;
+                updateTransform();
+            });
+        });
+        
+        function updateTransform() {
+            // Calculate absolute bounds based on scaled image size
+            // img width is naturalWidth * scale. Screen width is innerWidth.
+            // If image is larger than screen, bound it. Otherwise bound to center.
+            let imgW = lightboxImg.naturalWidth * scale;
+            let imgH = lightboxImg.naturalHeight * scale;
+            let winW = window.innerWidth;
+            let winH = window.innerHeight;
+            
+            // Limit pan so the image doesn't completely disappear
+            let maxPanX = Math.max(0, (imgW - winW) / 2);
+            let maxPanY = Math.max(0, (imgH - winH) / 2);
+            
+            translateX = Math.max(-maxPanX, Math.min(translateX, maxPanX));
+            translateY = Math.max(-maxPanY, Math.min(translateY, maxPanY));
+            
+            lightboxImg.style.transform = `scale(${scale}) translate(${translateX / scale}px, ${translateY / scale}px)`;
+        }
+    </script>
+
+
+    
+    <!-- WRAPPER FOR SIMULATOR -->
+    <div id="view-simulator" class="tab-content active">
+        <div class="monitor-container">
+            <!-- TIVI FRAME -->
+            <div class="monitor-frame">
+                <div class="monitor-screen">
+                    <!-- Ảnh chặng 1: Nhiễu rác -->
+                    <img id="stage1-media" src="/C:/Users/ADMIN/.gemini/antigravity/brain/f70173ee-de75-4c0f-9230-f9c5a93ddc97/.user_uploaded/media_1789806150394.jpg" />
+                    <!-- Ảnh chặng 2: Chia cắt màn hình -->
+                    <img id="stage2-media" src="/C:/Users/ADMIN/.gemini/antigravity/brain/f70173ee-de75-4c0f-9230-f9c5a93ddc97/.user_uploaded/media_1789806907093.jpg" />
+                    <!-- Ảnh chặng 3: Xé hình màu Neon -->
+                    <img id="stage3-media" src="/C:/Users/ADMIN/.gemini/antigravity/brain/f70173ee-de75-4c0f-9230-f9c5a93ddc97/.user_uploaded/media_1789978085169.jpg" />
+                    <!-- Ảnh chặng 4: Bệnh cũ tái phát -->
+                    <img id="stage4-media" src="/C:/Users/ADMIN/.gemini/antigravity/brain/f70173ee-de75-4c0f-9230-f9c5a93ddc97/.user_uploaded/media_1789995593406.jpg" />
+                    <!-- VIDEO HOÀN THIỆN -->
+                    <img id="stage5-media" src="/C:/Users/ADMIN/.gemini/antigravity/brain/22af90c4-2e8c-4346-8c08-0fd84599f6bd/.user_uploaded/media_1790528020826.png" />
+                    <video id="stage6-media" src="../FPGA_camera_OV7670.mp4" controls loop autoplay muted class="active"></video>
+                </div>
+                <div class="monitor-logo">VGA DISPLAY</div>
+                <div class="monitor-power"></div>
+            </div>
+            
+            <div class="stage-desc" id="sim-desc">
+                <b>✅ KẾT QUẢ HOÀN THIỆN.</b><br>Hệ thống hoạt động trơn tru: Ghi/Đọc SDRAM mượt mà, I2C ổn định, Camera tracking tay theo thời gian thực.
+            </div>
+            
+            <div class="stage-controls">
+                <button class="stage-btn" onclick="showStage(1, this)">Chặng 1: Nhiễu Rác</button>
+                <button class="stage-btn" onclick="showStage(2, this)">Chặng 2: Lệch Sync</button>
+                <button class="stage-btn" onclick="showStage(3, this)">Chặng 3: Màu Neon</button>
+                <button class="stage-btn" onclick="showStage(4, this)">Chặng 4: Bệnh Tái Phát</button>
+                <button class="stage-btn" onclick="showStage(5, this)">Chặng 5: Sọc dọc</button>
+                <button class="stage-btn active" style="border-color: #27ae60; color: #27ae60;" onclick="showStage(6, this)">✅ HOÀN THIỆN</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- TAB LOGIC JS -->
+    <script>
+        function switchMainTab(tabId) {
+            // Remove active from all buttons
+            document.getElementById('btn-tab1').classList.remove('active');
+            document.getElementById('btn-tab2').classList.remove('active');
+            document.getElementById('btn-sim').classList.remove('active');
+            
+            // Remove active from all content
+            document.getElementById('tab1').classList.remove('active');
+            document.getElementById('tab2').classList.remove('active');
+            document.getElementById('view-simulator').classList.remove('active');
+            
+            // Pause video if it exists
+            let video = document.getElementById('stage6-media');
+            if(video && video.tagName === 'VIDEO') video.pause();
+            
+            // Add active to selected
+            if (tabId === 'tab1') {
+                document.getElementById('btn-tab1').classList.add('active');
+                document.getElementById('tab1').classList.add('active');
+                document.getElementById('content').style.display = 'block';
+            } else if (tabId === 'tab2') {
+                document.getElementById('btn-tab2').classList.add('active');
+                document.getElementById('tab2').classList.add('active');
+                document.getElementById('content').style.display = 'block';
+            } else if (tabId === 'simulator') {
+                document.getElementById('btn-sim').classList.add('active');
+                document.getElementById('view-simulator').classList.add('active');
+                document.getElementById('content').style.display = 'none';
+            }
+        }
+        
+        function showStage(stageNum, btnElem) {
+            // Remove active from all buttons
+            document.querySelectorAll('.stage-btn').forEach(btn => btn.classList.remove('active'));
+            // Add active to clicked button
+            btnElem.classList.add('active');
+            
+            // Hide all media
+            const allMedia = document.querySelectorAll('.monitor-screen img, .monitor-screen video');
+            allMedia.forEach(m => {
+                m.classList.remove('active');
+                if(m.tagName === 'VIDEO') m.pause();
+            });
+            
+            // Show target media
+            const targetMedia = document.getElementById('stage' + stageNum + '-media');
+            targetMedia.classList.add('active');
+            if(targetMedia.tagName === 'VIDEO') targetMedia.play();
+            
+            // Update description
+            const desc = document.getElementById('sim-desc');
+            if (stageNum === 1) desc.innerHTML = "<b>Chặng 1: Lỗi tĩnh điện / Nhiễu rác.</b><br>SDRAM chưa được cấu hình đúng, dữ liệu rác trôi nổi tự do không có tín hiệu đồng bộ HSYNC/VSYNC.";
+            else if (stageNum === 2) desc.innerHTML = "<b>Chặng 2: Màn hình bị chia cắt.</b><br>Do tín hiệu VSYNC của hệ thống sinh ra lệch nhịp với tín hiệu VSYNC từ Camera, dẫn đến hình ảnh bị vỡ dọc.";
+            else if (stageNum === 3) desc.innerHTML = "<b>Chặng 3: Lỗi xé hình và màu Neon (Đảo byte).</b><br>Lỗi đảo lộn Big-Endian và Little-Endian khi ghép 2 byte RGB565 từ Camera vào bộ nhớ 16-bit.";
+            else if (stageNum === 4) desc.innerHTML = "<b>Chặng 4: Bệnh cũ tái phát (Sọc dọc).</b><br>Mất nhịp I2C, thanh ghi camera bị trôi về mặc định sinh ra các sọc màu chói dọc màn hình.";
+            
+            else if (stageNum === 5) desc.innerHTML = "<b>Chặng 5: Hành trình diệt Bug 5 sọc dọc kinh điển.</b><br>Khung hình xuất hiện chính xác 5 đường sọc nứt phân bố đều đặn. Tại các vết nứt này, dữ liệu điểm ảnh là pixel rác được phân bố 1 cách đều đặn chia màn hình thành 5 phần, với mỗi phần chiếm đúng 128 pixel.";
+            else if (stageNum === 6) desc.innerHTML = "<b>✅ KẾT QUẢ HOÀN THIỆN.</b><br>Hệ thống hoạt động trơn tru: Ghi/Đọc SDRAM mượt mà, I2C ổn định, Camera tracking tay theo thời gian thực.";
+
+        }
+    </script>
+
+</body>
+</html>
