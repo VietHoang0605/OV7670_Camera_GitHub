@@ -1,57 +1,59 @@
 // ============================================================================
 // Module Name: ov7670_config
-// NGUYÃŠN LÃ HOáº T Äá»˜NG & Dá»ŠCH CHUYá»‚N TRáº NG THÃI (FSM):
-// - Khá»‘i nÃ y láº¥y dá»¯ liá»‡u tá»« má»™t Soft-ROM chá»©a 156 lá»‡nh cáº¥u hÃ¬nh OV7670 (VGA RGB565).
-// - Chu trÃ¬nh FSM thá»±c hiá»‡n Handshake vá»›i i2c_master nhÆ° sau:
-//   1. IDLE: Chá» há»‡ thá»‘ng sáºµn sÃ ng.
-//   2. CHECK: Äá»c lá»‡nh tá»« ROM. Náº¿u gáº·p mÃ£ 16'hFFFF thÃ¬ nháº£y sang DONE. Náº¿u khÃ´ng, sang SEND.
-//   3. SEND: Náº¡p lá»‡nh, nhÃ¡y cá» i2c_start = 1 (chá»‰ trong 1 nhá»‹p) rá»“i nháº£y sang WAIT_BUSY.
-//   4. WAIT_BUSY: Chá» i2c_ready rá»›t xuá»‘ng 0 (i2c_master Ä‘Ã£ nháº­n lá»‡nh vÃ  báº¯t Ä‘áº§u báº­n).
-//   5. WAIT_READY: Chá» i2c_ready lÃªn láº¡i 1 (i2c_master Ä‘Ã£ truyá»n xong 3 bytes). TÄƒng chá»‰ sá»‘ ROM.
-//   6. DONE: Cáº¥u hÃ¬nh xong, giÆ°Æ¡ng cá» config_done.
+// NGUYÊN LÝ HOẠT ĐỘNG & DỊCH CHUYỂN TRẠNG THÁI (FSM):
+// - Khối này lấy dữ liệu từ một Soft-ROM chứa 156 lệnh cấu hình OV7670 (VGA RGB565).
+// - Chu trình FSM thực hiện Handshake với i2c_master như sau:
+//   1. IDLE: Chờ hệ thống sẵn sàng và đợi 10ms sau khi cấp nguồn.
+//   2. CHECK: Đọc lệnh từ ROM. Nếu gặp mã 16'hFFFF thì nhảy sang DONE. Nếu không, sang SEND.
+//   3. SEND: Nạp lệnh, nháy cờ i2c_start = 1 (chỉ trong 1 nhịp đồng hồ) rồi nhảy sang WAIT_BUSY.
+//   4. WAIT_BUSY: Chờ i2c_ready rớt xuống 0 (i2c_master đã nhận lệnh và bắt đầu bận truyền I2C).
+//   5. WAIT_READY: Chờ i2c_ready lên lại 1 (i2c_master đã truyền xong 3 bytes I2C). Tăng chỉ số ROM lên 1.
+//   6. DONE: Cấu hình xong, giương cờ config_done lên 1 để báo cho hệ thống.
 // ============================================================================
 
 `timescale 1ns / 1ps
 
 module ov7670_config (
-    // Äá»“ng há»“ vÃ  Reset
-    input  wire        clk,          // Xung nhá»‹p há»‡ thá»‘ng 50MHz
-    input  wire        rst_n,        // TÃ­n hiá»‡u reset toÃ n máº¡ch (Active-low)
+    // Đồng hồ và Reset
+    input  wire        clk,          // Xung nhịp hệ thống 50MHz từ bộ dao động. FSM hoạt động theo xung này.
+    input  wire        rst_n,        // Tín hiệu reset toàn mạch (Active-low). Kéo xuống 0 để reset khối cấu hình.
 
-    // Giao tiáº¿p vá»›i I2C Master
-    input  wire        i2c_ready,    // TÃ­n hiá»‡u bÃ¡o tráº¡ng thÃ¡i tá»« i2c_master (1 = Ráº£nh, 0 = Báº­n)
-    output reg         i2c_start,    // Cá» vá»— vai kÃ­ch hoáº¡t i2c_master gá»­i lá»‡nh
-    output reg  [15:0] i2c_data,     // Dá»¯ liá»‡u 16-bit (8-bit Ä‘á»‹a chá»‰ thanh ghi + 8-bit giÃ¡ trá»‹)
+    // Giao tiếp với I2C Master
+    input  wire        i2c_ready,    // Tín hiệu báo trạng thái từ i2c_master: 1 = Rảnh (sẵn sàng nhận lệnh), 0 = Bận (đang truyền I2C).
+    output reg         i2c_start,    // Cờ vỗ vai kích hoạt i2c_master bắt đầu gửi lệnh. Nháy lên 1 trong 1 chu kỳ clock.
+    output reg  [15:0] i2c_data,     // Dữ liệu 16-bit gửi cho i2c_master (8-bit địa chỉ thanh ghi + 8-bit giá trị cần ghi vào thanh ghi).
 
-    // Tráº¡ng thÃ¡i há»‡ thá»‘ng
-    output reg         config_done   // Cá» bÃ¡o hiá»‡u Ä‘Ã£ náº¡p xong toÃ n bá»™ bÄƒng Ä‘áº¡n ROM
+    // Trạng thái hệ thống
+    output reg         config_done   // Cờ báo hiệu đã nạp xong toàn bộ băng đạn ROM cấu hình cho camera. 1 = Xong.
 );
 
     // ========================================================================
-    // CÃC Háº°NG Sá» VÃ€ BIáº¾N STATE MACHINE
+    // CÁC HẰNG SỐ VÀ BIẾN STATE MACHINE (FSM)
     // ========================================================================
-    localparam [15:0] END_OF_ROM_CMD = 16'hFFFF; // MÃ£ chá»‘t háº¡ bÄƒng Ä‘áº¡n
+    localparam [15:0] END_OF_ROM_CMD = 16'hFFFF; // Mã chốt hạ băng đạn. Khi đọc được mã này, quá trình cấu hình kết thúc.
 
+    // Khai báo các trạng thái của FSM bằng localparam để code dễ đọc hơn.
     localparam [2:0] 
-        STATE_IDLE       = 3'd0,
-        STATE_CHECK      = 3'd1,
-        STATE_SEND       = 3'd2,
-        STATE_WAIT_BUSY  = 3'd3,
-        STATE_WAIT_READY = 3'd4,
-        STATE_DONE       = 3'd5;
+        STATE_IDLE       = 3'd0, // Trạng thái nghỉ ban đầu, chờ delay.
+        STATE_CHECK      = 3'd1, // Trạng thái kiểm tra mã lệnh (xem đã là FFFF chưa).
+        STATE_SEND       = 3'd2, // Trạng thái gửi lệnh qua i2c_master.
+        STATE_WAIT_BUSY  = 3'd3, // Trạng thái chờ i2c_master phản hồi bận (i2c_ready = 0).
+        STATE_WAIT_READY = 3'd4, // Trạng thái chờ i2c_master truyền xong (i2c_ready = 1).
+        STATE_DONE       = 3'd5; // Trạng thái hoàn thành cấu hình.
 
-    reg [2:0] state_current, state_next; // Thanh ghi tráº¡ng thÃ¡i hiá»‡n táº¡i vÃ  tiáº¿p theo
+    reg [2:0] state_current; // Thanh ghi lưu trạng thái hiện tại của FSM.
+    reg [2:0] state_next;    // Biến trung gian (wire) lưu trạng thái tiếp theo sẽ chuyển tới.
     
-    reg [7:0] rom_index;                 // Con trá» / LÃ² xo Ä‘áº©y Ä‘áº¡n lÃªn nÃ²ng
-    reg       rom_index_inc;             // Cá» kÃ­ch hoáº¡t tÄƒng con trá» thÃªm 1
+    reg [7:0] rom_index;     // Con trỏ / Lò xo đẩy đạn lên nòng, trỏ tới địa chỉ của mảng ROM chứa lệnh cấu hình.
+    reg       rom_index_inc; // Cờ kích hoạt tăng con trỏ thêm 1 (khi 1 lệnh đã được cấu hình thành công).
     
-    reg [15:0] rom_data;                 // LÆ°u giÃ¡ trá»‹ viÃªn Ä‘áº¡n 16-bit Ä‘á»c Ä‘Æ°á»£c tá»« ROM
+    reg [15:0] rom_data;     // Biến trung gian (wire) lưu giá trị viên đạn 16-bit đọc được từ ROM tại vị trí rom_index.
 
     // ========================================================================
     // KHỐI 1: ROM CHỨA MÃ LỆNH CẤU HÌNH (VGA 640x480, RGB565, 30fps)
     // ========================================================================
-    // ========================================================================
     // MASTER ROM: OV7670 VGA RGB565 (FULL DSP + HARDWARE WINDOW + TRUE MATRIX)
+    // LƯU Ý SỐNG CÒN: Tuyệt đối không thay đổi thứ tự và giá trị các lệnh này!
     // ========================================================================
     always @(*) begin
         case(rom_index)
@@ -229,109 +231,118 @@ module ov7670_config (
             8'd166: rom_data = 16'h3B8A; // COM11: Bật Night Mode (Tự động kéo dài thời gian phơi sáng). Sáng bừng mà không bị nhiễu!
             8'd167: rom_data = 16'h13E7; // COM8: Bật Auto Exposure, Auto Gain, Auto White Balance
             
-            default: rom_data = END_OF_ROM_CMD;
+            default: rom_data = END_OF_ROM_CMD; // Trả về lệnh 16'hFFFF (kết thúc cấu hình) nếu vượt quá chỉ số ROM
         endcase
     end
 
     // =========================================================================
-    // KHá»I 2: Cáº¬P NHáº¬T TRáº NG THÃI (Sequential Logic)
+    // KHỐI 2: CẬP NHẬT TRẠNG THÁI (Sequential Logic)
     // =========================================================================
-    reg [19:0] delay_cnt; // Bá»™ Ä‘áº¿m 20-bit (lÃªn tá»›i 1.04 triá»‡u). 500,000 xung = 10ms.
+    reg [19:0] delay_cnt; // Bộ đếm 20-bit (lên tới 1.04 triệu). 500,000 xung clk 50MHz tương đương 10ms.
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
+            // Reset các thanh ghi về trạng thái khởi tạo
             state_current <= STATE_IDLE;
-            rom_index <= 8'd0;
-            delay_cnt <= 20'd0;
+            rom_index     <= 8'd0;
+            delay_cnt     <= 20'd0;
         end else begin
+            // Cập nhật trạng thái tiếp theo cho FSM
             state_current <= state_next;
             
-            // TÄƒng con trá» ROM
+            // Tăng con trỏ ROM nếu cờ kích hoạt bằng 1
             if (rom_index_inc) begin
                 rom_index <= rom_index + 8'd1;
             end
 
-            // Xá»­ lÃ½ bá»™ Ä‘áº¿m delay
+            // Xử lý bộ đếm delay (thời gian trễ)
+            // Cần trễ 10ms ở trạng thái IDLE (khi khởi động) hoặc khi gửi lệnh reset camera (1280)
             if (state_current == STATE_IDLE || (state_current == STATE_SEND && rom_data == 16'h1280)) begin
-                delay_cnt <= 20'd500_000; // Äáº·t 10ms
+                delay_cnt <= 20'd500_000; // Đặt giá trị 500,000 để đếm ngược tạo trễ 10ms
             end else if (delay_cnt > 0) begin
-                delay_cnt <= delay_cnt - 1'b1;
+                delay_cnt <= delay_cnt - 1'b1; // Giảm dần bộ đếm
             end
         end
     end
     
     // =========================================================================
-    // KHá»I 3: Dá»ŠCH CHUYá»‚N TRáº NG THÃI (Next State Logic)
+    // KHỐI 3: DỊCH CHUYỂN TRẠNG THÁI (Next State Logic)
     // =========================================================================
     always @(*) begin
+        // Khởi tạo các giá trị mặc định để tránh chốt (latch)
         state_next    = state_current;
         rom_index_inc = 1'b0;
 
         case (state_current)
             STATE_IDLE: begin
-                // Äá»£i 10ms sau khi cáº¥p nguá»“n rá»“i má»›i báº¯t Ä‘áº§u
+                // Đợi 10ms sau khi cấp nguồn rồi mới bắt đầu (i2c_ready = 1 và delay_cnt = 0)
                 if(i2c_ready && delay_cnt == 0) begin
                     state_next = STATE_CHECK;
                 end
             end
             STATE_CHECK: begin
+                // Kiểm tra xem lệnh cấu hình đã hết chưa
                 if(rom_data == END_OF_ROM_CMD) begin
-                    state_next = STATE_DONE;
+                    state_next = STATE_DONE; // Chuyển sang DONE nếu đọc được mã FFFF
                 end
                 else begin
-                    state_next = STATE_SEND;
+                    state_next = STATE_SEND; // Chuyển sang SEND để gửi lệnh
                 end
             end
             STATE_SEND: begin
+                // Sau khi ra lệnh gửi, chuyển sang WAIT_BUSY ngay
                 state_next = STATE_WAIT_BUSY;
             end
             STATE_WAIT_BUSY: begin
-                // Náº¿u Ä‘Ã¢y lÃ  lá»‡nh Reset (1280), Ä‘á»£i delay_cnt = 0 má»›i sang WAIT_READY
-                // NhÆ°ng i2c_ready sáº½ báº­n trong lÃºc gá»­i. Wait, I2C master nháº­n lá»‡nh máº¥t vÃ i ms.
+                // Chờ i2c_master báo bận (i2c_ready = 0)
+                // Phải chờ i2c_master nhận được tín hiệu start và kéo ready xuống 0
                 if(i2c_ready == 1'b0) begin
                     state_next = STATE_WAIT_READY;
                 end
             end
             STATE_WAIT_READY: begin
+                // Chờ i2c_master truyền xong và báo rảnh (i2c_ready = 1)
                 if(i2c_ready == 1'b1) begin
-                    // Náº¿u lÃ  lá»‡nh 1280, báº¯t buá»™c chá» delay_cnt cáº¡n má»›i Ä‘i tiáº¿p
+                    // Nếu là lệnh reset (1280), bắt buộc chờ delay_cnt cạn mới đi tiếp để camera kịp khởi động lại
                     if (rom_data == 16'h1280 && delay_cnt > 0) begin
                         state_next = STATE_WAIT_READY;
                     end else begin
-                        rom_index_inc = 1'b1;
-                        state_next = STATE_CHECK;  
+                        rom_index_inc = 1'b1; // Bật cờ tăng chỉ số ROM lên 1
+                        state_next = STATE_CHECK;  // Quay lại CHECK để lấy lệnh tiếp theo
                     end
                 end
             end
             STATE_DONE: begin
+                // Mắc kẹt ở trạng thái này sau khi cấu hình xong
                 state_next = STATE_DONE;
             end
-            default: state_next = STATE_IDLE;
+            default: state_next = STATE_IDLE; // Bảo vệ FSM khỏi trạng thái lạ
         endcase
     end
     
     // =========================================================================
-    // KHá»I 4: ÄIá»€U KHIá»‚N Äáº¦U RA (Output Logic)
+    // KHỐI 4: ĐIỀU KHIỂN ĐẦU RA (Output Logic)
     // =========================================================================
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            i2c_start <= 1'b0;
-            i2c_data <= 16'd0;
+            // Xóa sạch các tín hiệu đầu ra khi reset
+            i2c_start   <= 1'b0;
+            i2c_data    <= 16'd0;
             config_done <= 1'd0;
         end else begin
             case (state_current)
                 STATE_SEND: begin
-                    i2c_start <= 1'b1;
-                    i2c_data <= rom_data;
+                    i2c_start <= 1'b1;       // Kích hoạt cờ gửi lệnh
+                    i2c_data  <= rom_data;   // Nạp dữ liệu lệnh cấu hình vào bus
                 end
                 STATE_WAIT_BUSY: begin
-                    i2c_start <= 1'b0;
+                    i2c_start <= 1'b0;       // Tắt cờ i2c_start ngay nhịp sau đó để tránh i2c_master gửi lặp lại
                 end
                 STATE_DONE: begin
-                    config_done <= 1'b1;
+                    config_done <= 1'b1;     // Giương cờ báo cấu hình xong
                 end
                 default: begin
-                    i2c_start <= 1'b0;
+                    i2c_start <= 1'b0;       // Giữ i2c_start ở 0 ở các trạng thái khác
                 end
             endcase
         end
