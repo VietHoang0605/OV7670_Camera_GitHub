@@ -1042,7 +1042,10 @@ Trong module <code>i2c_master.v</code>, biến trạng thái này mang tên <cod
 Bản chất của chân SDA trong giao thức I2C là cực máng hở (Open-Drain). Nó chỉ có thể kéo xuống 0V (GND), và cần một <strong>Điện trở kéo lên (Pull-up Resistor)</strong> để nhả về mức 3.3V (Logic 1). Module Camera rẻ tiền đã bị nhà sản xuất cắt bớt con điện trở này!
 <em>Cái bẫy chí mạng:</em> Vì dây SDA bị chết bẹp ở 0V, mà trong I2C mức 0 lại mang nghĩa là ACK. Bỗng nhiên, cái biến <code>ack_error</code> trong module <code>i2c_master.v</code> liên tục lấy mẫu được mức 0 và báo cáo với hệ thống rằng: "Mọi thứ vẫn đang hoàn hảo, Camera đã ACK". Hậu quả là FPGA cứ lầm lũi gửi hết 156 lệnh cấu hình vào khoảng không, trong khi Camera thực chất mù điếc!</p>
 <h2>6. Giải pháp Tầng Điện tử và Cú chốt hạ lịch sử</h2>
-<p>Để khắc phục sự thiếu sót của phần cứng, hệ thống đã được ép FPGA phải tự xuất điện trở nội bộ thông qua lệnh cấu hình QSF: <code>set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON</code>.
+<p>Để khắc phục sự thiếu sót của phần cứng, hệ thống đã được ép FPGA phải tự xuất điện trở nội bộ thông qua lệnh cấu hình QSF: <code>set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON</code>.</p>
+<pre><code class="language-tcl">set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to cam_sda
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to cam_scl</code></pre>
+<p>
 Nhưng 40k Ohm nội bộ là quá yếu để kéo cáp lên mức 1 kịp thời ở tốc độ 400kHz. Lập luận từ góc độ điện tử tương tự (Analog), hệ thống đã được chủ động hạ xung nhịp I2C xuống <strong>100kHz</strong> để cho tín hiệu có đủ thời gian (Rise time) sạc đầy lên 3.3V.</p>
 <p>Và đây là bức tranh tín hiệu SignalTap sau khi được chữa lành:
 <img alt="Tín hiệu I2C thành công" src="assets/media_1790417358515.png" />

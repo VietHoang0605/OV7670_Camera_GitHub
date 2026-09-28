@@ -1,4 +1,4 @@
-# BÁO CÁO KỸ THUẬT TOÀN DIỆN: DỰ ÁN HỆ THỐNG CAMERA OV7670 TRÊN FPGA
+﻿# BÁO CÁO KỸ THUẬT TOÀN DIỆN: DỰ ÁN HỆ THỐNG CAMERA OV7670 TRÊN FPGA
 
 **Hệ thống thu nhận, xử lý và hiển thị Video thời gian thực 640x480 qua SDRAM Ping-Pong Buffer trên KIT Terasic DE1**
 
@@ -545,7 +545,13 @@ Bản chất của chân SDA trong giao thức I2C là cực máng hở (Open-Dr
 *Cái bẫy chí mạng:* Vì dây SDA bị chết bẹp ở 0V, mà trong I2C mức 0 lại mang nghĩa là ACK. Bỗng nhiên, cái biến `ack_error` trong module `i2c_master.v` liên tục lấy mẫu được mức 0 và báo cáo với hệ thống rằng: "Mọi thứ vẫn đang hoàn hảo, Camera đã ACK". Hậu quả là FPGA cứ lầm lũi gửi hết 156 lệnh cấu hình vào khoảng không, trong khi Camera thực chất mù điếc!
 
 ## 6. Giải pháp Tầng Điện tử và Cú chốt hạ lịch sử
-Để khắc phục sự thiếu sót của phần cứng, hệ thống đã được ép FPGA phải tự xuất điện trở nội bộ thông qua lệnh cấu hình QSF: `set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON`.
+Để khắc phục sự thiếu sót của phần cứng, hệ thống đã được ép FPGA phải tự xuất điện trở nội bộ thông qua lệnh cấu hình QSF: set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON.
+
+`	cl
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to cam_sda
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to cam_scl
+`
+
 Nhưng 40k Ohm nội bộ là quá yếu để kéo cáp lên mức 1 kịp thời ở tốc độ 400kHz. Lập luận từ góc độ điện tử tương tự (Analog), hệ thống đã được chủ động hạ xung nhịp I2C xuống **100kHz** để cho tín hiệu có đủ thời gian (Rise time) sạc đầy lên 3.3V.
 
 Và đây là bức tranh tín hiệu SignalTap sau khi được chữa lành:
@@ -662,3 +668,5 @@ Trả lại sự công bằng cho thông số CAS Latency bằng cách tăng bi�
 Ngay sau khi ấn Compile và nạp xuống FPGA, chuỗi lấy mẫu 256 pixel khớp khít như những bánh răng cơ khí Thụy Sĩ. Pixel rác biến mất, dữ liệu đuôi được lấy trọn vẹn, và 5 sọc dọc vỡ hình bốc hơi hoàn toàn khỏi màn hình.
 
 Hệ thống Camera OV7670 chính thức vượt qua rào cản phần cứng khó nhằn nhất, chạy ổn định với Framebuffer SDRAM Ping-Pong tuyệt đối mượt mà!
+
+
