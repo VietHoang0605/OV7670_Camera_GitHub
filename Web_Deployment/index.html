@@ -1398,13 +1398,13 @@ Trả lại sự công bằng cho thông số CAS Latency bằng cách tăng bi�
             
             // Update description
             const desc = document.getElementById('sim-desc');
-            if (stageNum === 1) desc.innerHTML = "<b>Chặng 1: Lỗi tĩnh điện / Nhiễu rác.</b><br>SDRAM chưa được cấu hình đúng, dữ liệu rác trôi nổi tự do không có tín hiệu đồng bộ HSYNC/VSYNC.";
-            else if (stageNum === 2) desc.innerHTML = "<b>Chặng 2: Màn hình bị chia cắt.</b><br>Do tín hiệu VSYNC của hệ thống sinh ra lệch nhịp với tín hiệu VSYNC từ Camera, dẫn đến hình ảnh bị vỡ dọc.";
-            else if (stageNum === 3) desc.innerHTML = "<b>Chặng 3: Lỗi xé hình và màu Neon (Đảo byte).</b><br>Lỗi đảo lộn Big-Endian và Little-Endian khi ghép 2 byte RGB565 từ Camera vào bộ nhớ 16-bit.";
-            else if (stageNum === 4) desc.innerHTML = "<b>Chặng 4: Bệnh cũ tái phát (Sọc dọc).</b><br>Mất nhịp I2C, thanh ghi camera bị trôi về mặc định sinh ra các sọc màu chói dọc màn hình.";
+            if (stageNum === 1) desc.innerHTML = '<b>Chặng 1: Nhiễu rác & "Cái bồn không phao".</b><br>Arbiter bị treo do dùng nhầm Async FIFO không có cổng báo mực nước, khiến nó chỉ cắm cúi xả ảnh ra VGA mà không hút ảnh mới. Kèm theo lệnh I2C gửi quá sớm làm Camera "chết lâm sàng".';
+            else if (stageNum === 2) desc.innerHTML = '<b>Chặng 2: Nghẽn băng thông SDRAM.</b><br>SDRAM bị kẹt ở chế độ Single Write (ghi chậm hơn Camera 2,5 lần). W-FIFO tràn liên tục khiến màn hình chỉ vẽ được 1/3 phía trên, phần dưới là rác tĩnh và xé sọc ngang.';
+            else if (stageNum === 3) desc.innerHTML = '<b>Chặng 3: Rác đọng & Nứt dọc chia đôi.</b><br>Lúc khởi động, 280 pixel rác lọt vào W-FIFO và vĩnh viễn không bị ghi đè. Lượng rác này tạo ra độ dời địa chỉ làm lệch khung hình, sinh ra vết nứt dọc. Sửa bằng cách Xả đáy (Flush) W-FIFO mỗi khi VSYNC chuyển khung.';
+            else if (stageNum === 4) desc.innerHTML = '<b>Chặng 4: Áo ảnh I2C & Thiếu Pull-up.</b><br>Màn hình ám màu Neon/Tím dù mô phỏng Waveform đúng 100%. SignalTap phát hiện dây I2C SDA bị kẹt bẹp ở mức 0V do thiếu điện trở kéo lên, khiến Camera "mù điếc" trước 156 lệnh cấu hình. Sửa bằng Weak Pull-Up.';
             
-            else if (stageNum === 5) desc.innerHTML = "<b>Chặng 5: Hành trình diệt Bug 5 sọc dọc kinh điển.</b><br>Khung hình xuất hiện chính xác 5 đường sọc nứt phân bố đều đặn. Tại các vết nứt này, dữ liệu điểm ảnh là pixel rác được phân bố 1 cách đều đặn chia màn hình thành 5 phần, với mỗi phần chiếm đúng 128 pixel.";
-            else if (stageNum === 6) desc.innerHTML = "<b>✅ KẾT QUẢ HOÀN THIỆN.</b><br>Hệ thống hoạt động trơn tru: Ghi/Đọc SDRAM mượt mà, I2C ổn định, Camera tracking tay theo thời gian thực.";
+            else if (stageNum === 5) desc.innerHTML = '<b>Chặng 5: 5 Sọc dọc CAS Latency.</b><br>Màn hình vỡ thành 5 sọc nứt phân bố đều. SDRAM Controller bị thiết kế nôn nóng, lấy mẫu sớm 1 nhịp so với CAS Latency=3, dẫn đến mỗi khối Burst 256 đều đớp nhầm 1 pixel rác ở đầu và hụt 1 pixel thật ở đuôi.';
+            else if (stageNum === 6) desc.innerHTML = '<b>✅ KẾT QUẢ HOÀN THIỆN.</b><br>Hệ thống vượt qua mọi bài test khắc nghiệt: Đóng gói RGB565 chuẩn xác, Pipeline SDRAM Ping-Pong hoạt động mượt mà, I2C ổn định. Hình ảnh hiển thị Pixel-perfect, không nhiễu, không trôi.';
 
         }
     </script>
