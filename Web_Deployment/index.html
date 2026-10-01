@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="utf-8">
@@ -921,37 +921,7 @@ sdram_addr &lt;= 12'h237;
 <h3>Sơ đồ Trạng thái (FSM) của SDRAM Arbiter sau khi cập nhật:</h3>
 <p>Sự thay đổi cốt lõi được thể hiện ở nhánh <code>ARB_WRITE</code>, thay vì chỉ cần khác rỗng, máy trạng thái giờ đây đòi hỏi sự tích lũy dữ liệu đủ lớn.</p>
 
-<div class="mermaid">
-graph TD
-    classDef stateNode fill:#222,stroke:#FF9800,stroke-width:2px,color:#fff;
-    classDef initialNode fill:#333,stroke:#fff,stroke-width:2px,color:#fff;
-    
-    START((Bắt đầu)):::initialNode
-    IDLE[Trạng thái IDLE]:::stateNode
-    ARB_REFRESH[ARB_REFRESH]:::stateNode
-    ARB_READ[ARB_READ]:::stateNode
-    ARB_WRITE[ARB_WRITE]:::stateNode
-
-    START --> IDLE
-    IDLE -->|Cờ báo refresh_req bật| ARB_REFRESH
-    IDLE -->|Cờ báo vsync_req bật| ARB_READ
-    IDLE -->|Cờ báo w_fifo_count đạt 256| ARB_WRITE
-    
-    ARB_WRITE -->|Đang truyền dữ liệu| ARB_WRITE
-    ARB_WRITE -->|Cờ báo sys_wr_ack bật| IDLE
-    
-    ARB_READ -->|Hoàn tất đọc| IDLE
-    ARB_REFRESH -->|Hoàn tất Refresh| IDLE
-
-    linkStyle 0 stroke:#4CAF50,stroke-width:2px;
-    linkStyle 1 stroke:#FF9800,stroke-width:2px,stroke-dasharray:5 5;
-    linkStyle 2 stroke:#FF9800,stroke-width:2px,stroke-dasharray:5 5;
-    linkStyle 3 stroke:#FF9800,stroke-width:2px,stroke-dasharray:5 5;
-    linkStyle 4 stroke:#4CAF50,stroke-width:2px;
-    linkStyle 5 stroke:#FF9800,stroke-width:2px,stroke-dasharray:5 5;
-    linkStyle 6 stroke:#4CAF50,stroke-width:2px;
-    linkStyle 7 stroke:#4CAF50,stroke-width:2px;
-</div>
+<p><img class="zoomable-img" alt="Sơ đồ Trạng thái (FSM) của SDRAM Arbiter sau khi cập nhật" src="assets/fsm_sdram_arbiter.svg" style="max-width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 20px rgba(0,0,0,0.5); cursor: zoom-in; display: block; margin: 20px auto;" /></p>
 
 <h2>CHẶNG 3: SỰ CỐ "BÁC GÁC ĐẬP NHÂN BẢN NƯỚC" VÀ "DÒNG SUỐI HOA MẮT"</h2>
 <h2>1. Hiện tượng tại Khu dân cư (Màn hình VGA)</h2>
@@ -1429,40 +1399,7 @@ Trả lại sự công bằng cho thông số CAS Latency bằng cách tăng bi�
     </script>
 
 
-    <script>
-        // Mermaid Lightbox Integration
-        document.addEventListener("DOMContentLoaded", function() {
-            setTimeout(() => {
-                document.querySelectorAll('.mermaid svg').forEach(svg => {
-                    svg.parentElement.addEventListener('click', function(e) {
-                        e.stopPropagation();
-                        // Serialize SVG
-                        const serializer = new XMLSerializer();
-                        let svgStr = serializer.serializeToString(svg);
-                        if (!svgStr.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)) {
-                            svgStr = svgStr.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
-                        }
-                        const svgBlob = new Blob([svgStr], {type: "image/svg+xml;charset=utf-8"});
-                        const url = URL.createObjectURL(svgBlob);
-                        
-                        const lightbox = document.getElementById('img-lightbox');
-                        const lightboxImg = document.getElementById('lightbox-img-element');
-                        
-                        lightboxImg.src = url;
-                        lightbox.style.display = 'flex';
-                        
-                        // Default scale logic for lightbox
-                        if (typeof scale !== 'undefined') {
-                            scale = 1;
-                            translateX = 0;
-                            translateY = 0;
-                            if(typeof updateTransform === 'function') updateTransform();
-                        }
-                    });
-                });
-            }, 1000); // Wait for mermaid to render
-        });
-    </script>
+
 
 </body>
 </html>
