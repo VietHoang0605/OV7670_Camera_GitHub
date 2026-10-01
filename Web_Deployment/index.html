@@ -938,27 +938,7 @@ sdram_addr &lt;= 12'h237;
 <h3>Sơ đồ Trạng thái (FSM) của SDRAM Arbiter sau khi cập nhật:</h3>
 <p>Sự thay đổi cốt lõi được thể hiện ở nhánh <code>ARB_WRITE</code>, thay vì chỉ cần khác rỗng, máy trạng thái giờ đây đòi hỏi sự tích lũy dữ liệu đủ lớn.</p>
 
-<div class="mermaid">
-stateDiagram-v2
-    [*] --> IDLE
-    
-    IDLE --> ARB_REFRESH : Cờ refresh_req == 1
-(Ưu tiên Cao nhất - Bảo vệ dữ liệu SDRAM)
-    IDLE --> ARB_READ : Cờ vsync_req == 1
-(Ưu tiên 2 - Đảm bảo VGA không bị đói)
-    
-    %% ĐIỂM CẬP NHẬT CHÍNH NẰM Ở ĐÂY:
-    IDLE --> ARB_WRITE : Cờ w_fifo_count >= 256
-(Ưu tiên 3 - Đợi dồn đủ khối Burst)
-    
-    ARB_WRITE --> ARB_WRITE : Đang truyền dữ liệu
-(Chờ Controller xác nhận)
-    ARB_WRITE --> IDLE : Nhận cờ sys_wr_ack == 1
-(Hoàn tất ghi 256 Words)
-    
-    ARB_READ --> IDLE : Hoàn tất đọc Burst
-    ARB_REFRESH --> IDLE : Hoàn tất Refresh
-</div>
+<p><img class="zoomable-img" alt="Sơ đồ Trạng thái FSM của SDRAM Arbiter" src="assets/FSM_SDRAM_ARBITER.svg" style="background: white; border-radius: 16px; padding: 20px;" /></p>
 
 <h2>CHẶNG 3: SỰ CỐ "BÁC GÁC ĐẬP NHÂN BẢN NƯỚC" VÀ "DÒNG SUỐI HOA MẮT"</h2>
 <h2>1. Hiện tượng tại Khu dân cư (Màn hình VGA)</h2>
