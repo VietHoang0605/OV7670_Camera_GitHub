@@ -923,20 +923,20 @@ sdram_addr &lt;= 12'h237;
 
 <div class="mermaid">
 graph TD
-    classDef state fill:#222,stroke:#FF9800,stroke-width:2px,color:#fff,rx:8px,ry:8px;
+    classDef state fill:#222,stroke:#FF9800,stroke-width:2px,color:#fff;
     classDef initial fill:#333,stroke:#fff,stroke-width:2px,color:#fff;
     
     START(( )):::initial --> IDLE:::state
     
-    IDLE -->|"Cờ: refresh_req == 1<br/>Ưu tiên 1"| ARB_REFRESH:::state
-    IDLE -->|"Cờ: vsync_req == 1<br/>Ưu tiên 2"| ARB_READ:::state
-    IDLE -->|"Cờ: w_fifo_count >= 256<br/>Ưu tiên 3"| ARB_WRITE:::state
+    IDLE -->|Cờ: refresh_req == 1 - Ưu tiên 1| ARB_REFRESH:::state
+    IDLE -->|Cờ: vsync_req == 1 - Ưu tiên 2| ARB_READ:::state
+    IDLE -->|Cờ: w_fifo_count &gt;= 256 - Ưu tiên 3| ARB_WRITE:::state
     
-    ARB_WRITE -->|"Đang truyền dữ liệu<br/>Chờ xác nhận"| ARB_WRITE
-    ARB_WRITE -->|"Cờ: sys_wr_ack == 1<br/>Hoàn tất ghi"| IDLE
+    ARB_WRITE -->|Đang truyền dữ liệu - Chờ xác nhận| ARB_WRITE
+    ARB_WRITE -->|Cờ: sys_wr_ack == 1 - Hoàn tất ghi| IDLE
     
-    ARB_READ -->|"Hoàn tất đọc"| IDLE
-    ARB_REFRESH -->|"Hoàn tất Refresh"| IDLE
+    ARB_READ -->|Hoàn tất đọc| IDLE
+    ARB_REFRESH -->|Hoàn tất Refresh| IDLE
 
     linkStyle 0 stroke:#4CAF50,stroke-width:2px,color:#4CAF50;
     linkStyle 1,2,3 stroke:#FF9800,stroke-width:2px,stroke-dasharray: 5,color:#FF9800;
