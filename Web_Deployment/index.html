@@ -889,24 +889,33 @@ sdram_addr &lt;= 12'h237;
 
 <h3>3. Giải pháp: Mở rộng đường ống với Burst Write 256</h3>
 <p>Để giải quyết nút thắt này, hệ thống Arbiter và SDRAM Controller được thiết kế lại để thay vì rút từng giọt nước, nó sẽ chờ phao báo đủ nước và <strong>Hút một lèo 256 pixel liên tục (Burst Write)</strong>.</p>
-<pre><code>[Camera OV7670]
-  | 
-  | (Bơm liên tục: 1 pixel / 80ns ~ 12M pixels/s)
-  v
-[ W-FIFO (Bể đệm đầu vào) ] 
-  | --- (Lắp thêm phao đo 'rcount' ở miền 50MHz để theo dõi)
-  | 
-  | (Khi phao báo đầy 256 giọt: Gọi Trọng tài tới xử lý)
-  v
-[ SDRAM Arbiter (Trọng tài) ] 
-  | --- (Hành động 1: HÚT 1 lèo 256 words từ W-FIFO)
-  | --- (Hành động 2: BƠM tốc độ cao vào SDRAM Controller)
-  v
-[ SDRAM Controller ] 
-  | --- (Cấu hình Mode Register: 12'h037 - Kích hoạt Burst Write)
-  |
-  v (Cánh cổng mở rộng: Tốc độ xả nước vọt lên 50 MWords/s!)
-[ Chip nhớ SDRAM ]</code></pre>
+<div class="mermaid">
+graph TD
+    %% Định nghĩa CSS cho các Node
+    classDef module fill:#222,stroke:#4CAF50,stroke-width:2px,color:#fff,rx:8px,ry:8px;
+    classDef memory fill:#222,stroke:#FF9800,stroke-width:2px,color:#fff,rx:8px,ry:8px;
+    
+    CAM[Camera OV7670]:::module
+    WFIFO[(W-FIFO async_fifo)]:::memory
+    ARB[SDRAM Arbiter]:::module
+    CTRL[SDRAM Controller]:::module
+    SDRAM[(Chip nhớ SDRAM)]:::memory
+
+    %% 1. Đường truyền dữ liệu (Data Flow) - MÀU XANH LÁ
+    CAM -->|Data: 1 pixel/80ns| WFIFO
+    WFIFO -->|Data: Hút 256 words| ARB
+    ARB -->|Data: Bơm tốc độ cao| CTRL
+    CTRL -->|Data: 50 MWords/s| SDRAM
+
+    %% 2. Đường cờ báo (Control Flow) - MÀU CAM, NÉT ĐỨT
+    WFIFO -.->|Cờ: w_fifo_count >= 256| ARB
+    ARB -.->|Cờ: sys_wr_req| CTRL
+    CTRL -.->|Cờ: sys_wr_ack == 1| ARB
+
+    %% Ép màu cho các mũi tên (0-3 là Data, 4-6 là Control)
+    linkStyle 0,1,2,3 stroke:#4CAF50,stroke-width:2px,color:#4CAF50;
+    linkStyle 4,5,6 stroke:#FF9800,stroke-width:2px,stroke-dasharray: 5 5,color:#FF9800;
+</div>
 <h3>Chi tiết các bước thực hiện & Đánh giá hiệu quả:</h3>
 
 <h4>1. Nâng cấp Bộ đệm W-FIFO (<code>rptr_empty.v</code> & <code>async_fifo.v</code>)</h4>
