@@ -928,12 +928,12 @@ graph TD
     
     START(( )):::initial --> IDLE:::state
     
-    IDLE -->|Cờ: refresh_req == 1 - Ưu tiên 1| ARB_REFRESH:::state
-    IDLE -->|Cờ: vsync_req == 1 - Ưu tiên 2| ARB_READ:::state
-    IDLE -->|Cờ: w_fifo_count &gt;= 256 - Ưu tiên 3| ARB_WRITE:::state
+    IDLE -->|Cờ báo refresh_req bật - Ưu tiên 1| ARB_REFRESH:::state
+    IDLE -->|Cờ báo vsync_req bật - Ưu tiên 2| ARB_READ:::state
+    IDLE -->|Cờ báo w_fifo_count đạt 256 - Ưu tiên 3| ARB_WRITE:::state
     
     ARB_WRITE -->|Đang truyền dữ liệu - Chờ xác nhận| ARB_WRITE
-    ARB_WRITE -->|Cờ: sys_wr_ack == 1 - Hoàn tất ghi| IDLE
+    ARB_WRITE -->|Cờ báo sys_wr_ack bật - Hoàn tất ghi| IDLE
     
     ARB_READ -->|Hoàn tất đọc| IDLE
     ARB_REFRESH -->|Hoàn tất Refresh| IDLE
