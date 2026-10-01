@@ -947,7 +947,39 @@ graph TD
 <h3>Sơ đồ Trạng thái (FSM) của SDRAM Arbiter sau khi cập nhật:</h3>
 <p>Sự thay đổi cốt lõi được thể hiện ở nhánh <code>ARB_WRITE</code>, thay vì chỉ cần khác rỗng, máy trạng thái giờ đây đòi hỏi sự tích lũy dữ liệu đủ lớn.</p>
 
-<p><img class="zoomable-img" alt="Sơ đồ Trạng thái FSM của SDRAM Arbiter" src="assets/FSM_SDRAM_ARBITER.svg" style="background: white; border-radius: 16px; padding: 20px;" /></p>
+<div class="mermaid">
+graph TD
+    classDef state fill:#222,stroke:#FF9800,stroke-width:2px,color:#fff,rx:8px,ry:8px;
+    classDef initial fill:#333,stroke:#fff,stroke-width:2px,color:#fff;
+    
+    START(( )):::initial --> IDLE:::state
+    
+    IDLE -->|Cờ: refresh_req == 1<br/>Ưu tiên 1| ARB_REFRESH:::state
+    IDLE -->|Cờ: vsync_req == 1<br/>Ưu tiên 2| ARB_READ:::state
+    IDLE -->|Cờ: w_fifo_count >= 256<br/>Ưu tiên 3| ARB_WRITE:::state
+    
+    ARB_WRITE -->|Đang truyền dữ liệu<br/>Chờ xác nhận| ARB_WRITE
+    ARB_WRITE -->|Cờ: sys_wr_ack == 1<br/>Hoàn tất ghi| IDLE
+    
+    ARB_READ -->|Hoàn tất đọc| IDLE
+    ARB_REFRESH -->|Hoàn tất Refresh| IDLE
+
+    %% Styling links
+    %% 0: START -> IDLE (Green, solid)
+    linkStyle 0 stroke:#4CAF50,stroke-width:2px,color:#4CAF50;
+    
+    %% 1,2,3: IDLE -> states (Conditions/Control -> Orange dashed)
+    linkStyle 1,2,3 stroke:#FF9800,stroke-width:2px,stroke-dasharray: 5,color:#FF9800;
+    
+    %% 4: ARB_WRITE -> ARB_WRITE (Data transmitting -> Green solid)
+    linkStyle 4 stroke:#4CAF50,stroke-width:2px,color:#4CAF50;
+    
+    %% 5: ARB_WRITE -> IDLE (Condition ack -> Orange dashed)
+    linkStyle 5 stroke:#FF9800,stroke-width:2px,stroke-dasharray: 5,color:#FF9800;
+    
+    %% 6,7: ARB_READ -> IDLE, ARB_REFRESH -> IDLE (Return to idle -> Green solid)
+    linkStyle 6,7 stroke:#4CAF50,stroke-width:2px,color:#4CAF50;
+</div>
 
 <h2>CHẶNG 3: SỰ CỐ "BÁC GÁC ĐẬP NHÂN BẢN NƯỚC" VÀ "DÒNG SUỐI HOA MẮT"</h2>
 <h2>1. Hiện tượng tại Khu dân cư (Màn hình VGA)</h2>
@@ -1422,6 +1454,42 @@ Trả lại sự công bằng cho thông số CAS Latency bằng cách tăng bi�
             else if (stageNum === 6) desc.innerHTML = '<b>✅ KẾT QUẢ HOÀN THIỆN.</b><br>Hệ thống vượt qua mọi bài test khắc nghiệt: Đóng gói RGB565 chuẩn xác, Pipeline SDRAM Ping-Pong hoạt động mượt mà, I2C ổn định. Hình ảnh hiển thị Pixel-perfect, không nhiễu, không trôi.';
 
         }
+    </script>
+
+
+    <script>
+        // Mermaid Lightbox Integration
+        document.addEventListener("DOMContentLoaded", function() {
+            setTimeout(() => {
+                document.querySelectorAll('.mermaid svg').forEach(svg => {
+                    svg.parentElement.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        // Serialize SVG
+                        const serializer = new XMLSerializer();
+                        let svgStr = serializer.serializeToString(svg);
+                        if (!svgStr.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)) {
+                            svgStr = svgStr.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+                        }
+                        const svgBlob = new Blob([svgStr], {type: "image/svg+xml;charset=utf-8"});
+                        const url = URL.createObjectURL(svgBlob);
+                        
+                        const lightbox = document.getElementById('img-lightbox');
+                        const lightboxImg = document.getElementById('lightbox-img-element');
+                        
+                        lightboxImg.src = url;
+                        lightbox.style.display = 'flex';
+                        
+                        // Default scale logic for lightbox
+                        if (typeof scale !== 'undefined') {
+                            scale = 1;
+                            translateX = 0;
+                            translateY = 0;
+                            if(typeof updateTransform === 'function') updateTransform();
+                        }
+                    });
+                });
+            }, 1000); // Wait for mermaid to render
+        });
     </script>
 
 </body>
