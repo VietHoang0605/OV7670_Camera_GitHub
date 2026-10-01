@@ -1,4 +1,4 @@
-﻿# OV7670 REAL-TIME CAMERA SYSTEM ON FPGA
+# OV7670 REAL-TIME CAMERA SYSTEM ON FPGA
 
 ## 1. TỔNG QUAN DỰ ÁN (PROJECT OVERVIEW)
 
@@ -6,7 +6,7 @@ Hệ thống thu thập, xử lý và hiển thị hình ảnh thời gian thự
 
 **Liên kết Tài liệu Kỹ thuật Chi tiết:**
 > Báo cáo chuyên sâu về kiến trúc, nhật ký xử lý tín hiệu vật lý và khắc phục sự cố (Bug Hunting) được trình bày chi tiết tại trang Web UI nội bộ của dự án:
-> **[👉 Xem Báo cáo Kỹ thuật (Web Report)](https://de1-camera-ov7670.netlify.app/)**
+> **[👉 Xem Báo cáo Kỹ thuật (Web Report)](https://de1-fpga-camera-ov7670.vercel.app/)**
 
 ---
 
