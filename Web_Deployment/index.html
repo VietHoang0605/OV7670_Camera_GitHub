@@ -889,33 +889,7 @@ sdram_addr &lt;= 12'h237;
 
 <h3>3. Giải pháp: Mở rộng đường ống với Burst Write 256</h3>
 <p>Để giải quyết nút thắt này, hệ thống Arbiter và SDRAM Controller được thiết kế lại để thay vì rút từng giọt nước, nó sẽ chờ phao báo đủ nước và <strong>Hút một lèo 256 pixel liên tục (Burst Write)</strong>.</p>
-<div class="mermaid">
-graph TD
-    %% Định nghĩa CSS cho các Node
-    classDef module fill:#222,stroke:#4CAF50,stroke-width:2px,color:#fff,rx:8px,ry:8px;
-    classDef memory fill:#222,stroke:#FF9800,stroke-width:2px,color:#fff,rx:8px,ry:8px;
-    
-    CAM[Camera OV7670]:::module
-    WFIFO[(W-FIFO async_fifo)]:::memory
-    ARB[SDRAM Arbiter]:::module
-    CTRL[SDRAM Controller]:::module
-    SDRAM[(Chip nhớ SDRAM)]:::memory
 
-    %% 1. Đường truyền dữ liệu (Data Flow) - MÀU XANH LÁ
-    CAM -->|Data: 1 pixel/80ns| WFIFO
-    WFIFO -->|Data: Hút 256 words| ARB
-    ARB -->|Data: Bơm tốc độ cao| CTRL
-    CTRL -->|Data: 50 MWords/s| SDRAM
-
-    %% 2. Đường cờ báo (Control Flow) - MÀU CAM, NÉT ĐỨT
-    WFIFO -.->|Cờ: w_fifo_count >= 256| ARB
-    ARB -.->|Cờ: sys_wr_req| CTRL
-    CTRL -.->|Cờ: sys_wr_ack == 1| ARB
-
-    %% Ép màu cho các mũi tên (0-3 là Data, 4-6 là Control)
-    linkStyle 0,1,2,3 stroke:#4CAF50,stroke-width:2px,color:#4CAF50;
-    linkStyle 4,5,6 stroke:#FF9800,stroke-width:2px,stroke-dasharray: 5 5,color:#FF9800;
-</div>
 <h3>Chi tiết các bước thực hiện & Đánh giá hiệu quả:</h3>
 
 <h4>1. Nâng cấp Bộ đệm W-FIFO (<code>rptr_empty.v</code> & <code>async_fifo.v</code>)</h4>
@@ -954,30 +928,20 @@ graph TD
     
     START(( )):::initial --> IDLE:::state
     
-    IDLE -->|Cờ: refresh_req == 1<br/>Ưu tiên 1| ARB_REFRESH:::state
-    IDLE -->|Cờ: vsync_req == 1<br/>Ưu tiên 2| ARB_READ:::state
-    IDLE -->|Cờ: w_fifo_count >= 256<br/>Ưu tiên 3| ARB_WRITE:::state
+    IDLE -->|"Cờ: refresh_req == 1<br/>Ưu tiên 1"| ARB_REFRESH:::state
+    IDLE -->|"Cờ: vsync_req == 1<br/>Ưu tiên 2"| ARB_READ:::state
+    IDLE -->|"Cờ: w_fifo_count >= 256<br/>Ưu tiên 3"| ARB_WRITE:::state
     
-    ARB_WRITE -->|Đang truyền dữ liệu<br/>Chờ xác nhận| ARB_WRITE
-    ARB_WRITE -->|Cờ: sys_wr_ack == 1<br/>Hoàn tất ghi| IDLE
+    ARB_WRITE -->|"Đang truyền dữ liệu<br/>Chờ xác nhận"| ARB_WRITE
+    ARB_WRITE -->|"Cờ: sys_wr_ack == 1<br/>Hoàn tất ghi"| IDLE
     
-    ARB_READ -->|Hoàn tất đọc| IDLE
-    ARB_REFRESH -->|Hoàn tất Refresh| IDLE
+    ARB_READ -->|"Hoàn tất đọc"| IDLE
+    ARB_REFRESH -->|"Hoàn tất Refresh"| IDLE
 
-    %% Styling links
-    %% 0: START -> IDLE (Green, solid)
     linkStyle 0 stroke:#4CAF50,stroke-width:2px,color:#4CAF50;
-    
-    %% 1,2,3: IDLE -> states (Conditions/Control -> Orange dashed)
     linkStyle 1,2,3 stroke:#FF9800,stroke-width:2px,stroke-dasharray: 5,color:#FF9800;
-    
-    %% 4: ARB_WRITE -> ARB_WRITE (Data transmitting -> Green solid)
     linkStyle 4 stroke:#4CAF50,stroke-width:2px,color:#4CAF50;
-    
-    %% 5: ARB_WRITE -> IDLE (Condition ack -> Orange dashed)
     linkStyle 5 stroke:#FF9800,stroke-width:2px,stroke-dasharray: 5,color:#FF9800;
-    
-    %% 6,7: ARB_READ -> IDLE, ARB_REFRESH -> IDLE (Return to idle -> Green solid)
     linkStyle 6,7 stroke:#4CAF50,stroke-width:2px,color:#4CAF50;
 </div>
 
