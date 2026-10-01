@@ -873,40 +873,40 @@ sdram_addr &lt;= 12'h237;
 </table>
 <hr />
 <h2>3. Phân tích 2 câu hỏi kỹ thuật của chuyên gia</h2>
-<h3>Câu hỏi 1: Tại sao chỉ bơm được ~1/3 màn hình?</h3>
+<h3>1. Tại sao chỉ bơm được ~1/3 màn hình? (Nút thắt cổ chai W-FIFO)</h3>
+<p>Nguyên nhân gốc rễ không nằm ở xung đột với VGA, mà nằm ở <strong>sự nghẽn mạch tại W-FIFO (Bể chứa đầu vào)</strong> do tốc độ "Hút" không theo kịp tốc độ "Bơm".</p>
 <ul>
-<li><strong>Thời gian 1 khung hình Camera (30 fps):</strong> $33,3\,\text{ms}$.</li>
-<li><strong>Thời gian VGA đọc chiếm bus SDRAM:</strong> Khoảng $6,4\,\text{ms}$ (ưu tiên cao hơn để không mất đồng bộ hiển thị).</li>
-<li><strong>Thời gian còn lại để ghi:</strong> $33,3\,\text{ms} - 6,4\,\text{ms} = 26,9\,\text{ms}$.</li>
-<li><strong>Tốc độ ghi Single Access:</strong> Mỗi pixel tốn 10 chu kỳ xung 50MHz ($200\,\text{ns}$).</li>
-<li><strong>Số pixel tối đa ghi kịp:</strong> $\frac{26,9\,\text{ms}}{200\,\text{ns}} \approx 134.500\,\text{pixel}$.</li>
-<li><strong>Tỷ lệ khung hình:</strong> $\frac{134.500}{307.200} \approx \mathbf{43,7\%}$ (Gần đúng 1/3 đến 2/5 chiều cao màn hình, khoảng 180 dòng đầu).</li>
-<li><strong>Lý do bị cắt ngang:</strong> Hết $33,3\,\text{ms}$, Camera phát xung <code>vsync_falling</code> kết thúc khung. Lệnh <code>write_addr &lt;= 0</code> trong Arbiter lập tức giật con trỏ về đỉnh màn hình để vẽ khung mới. Con trỏ ghi <strong>chưa bao giờ kịp chạm tới 2/3 diện tích phía dưới</strong>.</li>
+<li><strong>Tốc độ Camera bơm vào:</strong> Camera đẩy dữ liệu liên tục vào W-FIFO với tốc độ 1 pixel / 80ns (Tương đương <strong>12 triệu pixel/giây</strong>).</li>
+<li><strong>Tốc độ Trọng tài (Arbiter) hút ra:</strong> Ở thiết kế cũ, chiều ghi của SDRAM bị đặt ở chế độ ghi đơn lẻ (Single Access). Việc rút 1 pixel từ W-FIFO đem đi cất vào SDRAM diễn ra rất chậm chạp, tốc độ hút ra tối đa chỉ đạt <strong>5 triệu pixel/giây</strong>.</li>
+<li><strong>Hậu quả (Tràn W-FIFO):</strong> Vì tốc độ bơm (12M) lớn hơn gấp đôi tốc độ hút (5M), W-FIFO nhanh chóng bị đầy ứ (Overflow) chỉ sau vài dòng quét. Các pixel sinh ra sau đó không còn chỗ chứa nên bị phần cứng vứt bỏ (Drop) vĩnh viễn. Khi xung <code>VSYNC</code> mới ập tới để bắt đầu khung hình tiếp theo, con trỏ ghi bị giật về 0 trong khi lượng điểm ảnh sống sót mới chỉ đủ lấp đầy khoảng 1/3 chiều cao màn hình.</li>
 </ul>
-<h3>Câu hỏi 2: Tại sao hình ảnh lại bị nhiễu sọc ngang rất nặng?</h3>
-<ol>
-<li><strong>Tràn bồn W-FIFO gây vứt bỏ pixel:</strong> Nước vào bồn nhanh gấp 2,5 lần nước múc ra. Sau 2-3 dòng quét, W-FIFO bị đầy tràn. Mạch logic bắt buộc phải thả trôi (drop) các pixel tiếp theo.</li>
-<li><strong>Sụp đổ đồng bộ trục ngang (H-Sync Desynchronization):</strong> Khi bị rớt điểm ảnh, vị trí tọa độ của dòng này bị thụt lùi và tràn sang dòng khác, khiến các đường quét bị xé toạc theo phương ngang, tạo thành các vệt sóng gợn và sọc chuyển động liên tục.</li>
-<li><strong>Nhiễu hạt cảm biến:</strong> Thiếu sáng trong phòng kích hoạt AGC của OV7670 đẩy Gain lên cực đại, cộng thêm việc rớt byte làm sai lệch hệ màu RGB565 sinh ra sắc tím.</li>
-</ol>
-<hr />
-<h2>4. BẢN ĐỒ SỬA CHỮA HỆ THỐNG (SYSTEM REPAIR BLUEPRINT)</h2>
-<p>Để biến chiều GHI thành <strong>Burst Write (256 Words)</strong> tương đương với chiều ĐỌC, hệ thống sẽ được nâng cấp theo sơ đồ sau:</p>
-<pre><code>[Camera OV7670] 
-       │ (1 pixel / 80ns)
-       ▼
-[ W-FIFO (async_fifo) ] ── (Thêm cổng rcount báo mực nước ở miền 50MHz)
-       │
-       │ (Khi rcount &gt;= 256 words: Phát lệnh BURST WRITE)
-       ▼
-[ SDRAM Arbiter ] ─────── (Bắn 1 gói 256 words liên tục)
-       │
-       ▼
-[ SDRAM Controller ] ──── (Chuyển Mode Register sang 12'h037 - Burst Write)
-       │
-       ▼ (Tốc độ ghi tăng vọt lên 50 MWords/s: 1 pixel / 20ns!)
-[ Chip nhớ SDRAM ] ────── Ghi xong cả khung 640x480 chỉ mất 6,5ms!
-</code></pre>
+
+<h3>2. Tại sao hình ảnh lại bị nhiễu sọc ngang rất nặng?</h3>
+<ul>
+<li><strong>Mất đồng bộ không gian do rớt Pixel:</strong> Khi W-FIFO bị đầy và các điểm ảnh bị vứt bỏ, hệ thống ghi SDRAM không hề biết điều đó. Nó vẫn tiếp tục xếp các điểm ảnh "sống sót" kế tiếp vào ngay sát cạnh nhau.</li>
+<li>Hệ quả là tọa độ của các điểm ảnh bị thụt lùi, xô lệch và tràn từ dòng này sang dòng khác. Khung hình bị xé toạc theo phương ngang, tạo thành các vệt sóng gợn và sọc chuyển động liên tục.</li>
+</ul>
+
+<h3>3. Giải pháp: Mở rộng đường ống với Burst Write 256</h3>
+<p>Để giải quyết nút thắt này, hệ thống Arbiter và SDRAM Controller được thiết kế lại để thay vì rút từng giọt nước, nó sẽ chờ phao báo đủ nước và <strong>Hút một lèo 256 pixel liên tục (Burst Write)</strong>.</p>
+<pre><code>[Camera OV7670]
+  | 
+  | (Bơm liên tục: 1 pixel / 80ns ~ 12M pixels/s)
+  v
+[ W-FIFO (Bể đệm đầu vào) ] 
+  | --- (Lắp thêm phao đo 'rcount' ở miền 50MHz để theo dõi)
+  | 
+  | (Khi phao báo đầy 256 giọt: Gọi Trọng tài tới xử lý)
+  v
+[ SDRAM Arbiter (Trọng tài) ] 
+  | --- (Hành động 1: HÚT 1 lèo 256 words từ W-FIFO)
+  | --- (Hành động 2: BƠM tốc độ cao vào SDRAM Controller)
+  v
+[ SDRAM Controller ] 
+  | --- (Cấu hình Mode Register: 12'h037 - Kích hoạt Burst Write)
+  |
+  v (Cánh cổng mở rộng: Tốc độ xả nước vọt lên 50 MWords/s!)
+[ Chip nhớ SDRAM ]</code></pre>
 <h3>Chi tiết các bước thực hiện:</h3>
 <ol>
 <li><strong>Module <code>rptr_empty.v</code> &amp; <code>async_fifo.v</code>:</strong></li>
