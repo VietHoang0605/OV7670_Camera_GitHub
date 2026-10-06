@@ -636,7 +636,73 @@ Do đó, ta không thể nối ống trực tiếp từ Hồ SDRAM (vốn có đ
 </ul>
 <p>Nhìn từ bên ngoài, SCL lên xuống như một xung Clock 400KHz. Nhưng nhìn từ bên trong FPGA, SCL chỉ là một chân tín hiệu (Data) đang bật tắt dưới sự kiểm soát của FSM 50MHz.</p>
 <hr />
-<h2>3. Phân biệt "Đồng bộ (Synchronous)" và "Bất đồng bộ (Async CDC)"</h2>
+<hr />
+<h2>3. PHỤ LỤC CHUYÊN SÂU: GIẢI MÃ CHÂN INOUT VÀ KIẾN TRÚC VẬT LÝ CỦA HỆ THỐNG (SDRAM vs I2C)</h2>
+<p>Trong thiết kế phần cứng FPGA, từ khóa <code>inout</code> (Tri-state Buffer) được sinh ra với mục đích duy nhất: Tiết kiệm chân cắm vật lý. Nó ép một sợi dây đồng phải đóng cả 2 vai trò Phát (TX) và Nhận (RX) theo kiểu Bộ đàm (Half-Duplex).</p>
+<p>Tuy nhiên, đằng sau cùng một từ khóa <code>inout</code> trong code Verilog, bản chất vật lý của Bus dữ liệu SDRAM và Bus điều khiển I2C lại khác biệt nhau một trời một vực.</p>
+
+<h3>3.1. Sự khác biệt cốt lõi: Mạch CMOS Push-Pull (SDRAM) vs Cực máng hở Open-Drain (I2C)</h3>
+<h4>A. Bus Dữ liệu SDRAM: Cấu trúc Push-Pull CMOS (Luân phiên Bơm/Thả nổi)</h4>
+<ul>
+    <li><strong>Bản chất phần cứng:</strong> Ở cả 2 đầu của đường dây truyền (phía con chip FPGA và phía con chip SDRAM) đều được trang bị một cặp "cơ bắp" Transistor khổng lồ: con PMOS nối trực tiếp lên Nguồn (3.3V) và con NMOS nối trực tiếp xuống Đất (GND). <strong>Quy luật sinh tử của Bus 2 chiều là: Khi anh này gồng cơ bắp bơm điện, anh kia bắt buộc phải thả lỏng (Thả nổi/High-Z) để hứng.</strong></li>
+    <li><strong>Cơ chế dịch Code (Synthesizing) tại FPGA:</strong> Khi Kỹ sư gõ: <code>assign SDRAM_DQ = (sdram_wr_en) ? w_fifo_data : 16'bz;</code> Phần mềm Quartus sẽ đấu thẳng 2 biến <code>sdram_wr_en</code> (Cờ điều khiển) và <code>w_fifo_data</code> (Dữ liệu) vào "Bộ não" điều khiển cặp PMOS/NMOS bên trong FPGA.</li>
+    <li><strong>Quá trình giao tiếp luân phiên trong Hệ thống:</strong>
+        <ul>
+            <li><strong>Chiều 1: FPGA Ghi dữ liệu vào SDRAM (Quá trình Bơm):</strong> Lúc này, chân I/O của FPGA tuyệt đối không được thả nổi. FPGA dùng quyền năng của mình, nhìn vào biến <code>w_fifo_data</code> (hút từ W-FIFO): Nếu là 1, FPGA bật PMOS; nếu là 0, FPGA bật NMOS. Cứ thế nó bơm điện áp cực mạnh ép dữ liệu vào đường dây. Để hứng được luồng dữ liệu vũ bão này, con chip SDRAM phải tự động cúp cầu dao, thả nổi cặp PMOS/NMOS của chính nó để há miệng cho dòng điện từ FPGA chảy tọt vào lõi bộ nhớ.</li>
+            <li><strong>Chiều 2: SDRAM đẩy dữ liệu ra R-FIFO (Quá trình Đọc):</strong> Lúc này quyền trượng đảo ngược. Mạch logic của FPGA (<code>sdram_wr_en = 0</code>) ra lệnh khóa tử, ép chân I/O của FPGA rơi vào trạng thái thả nổi (Trở kháng cao - High-Z). FPGA ngắt điện cặp PMOS/NMOS của nó, chỉ há miệng ra để hứng. Ngay khi FPGA buông tay, con chip SDRAM đoạt quyền kiểm soát. Nó tự nhìn vào từng ô nhớ bên trong lõi: Nếu lưu số 1, SDRAM bật PMOS của nó; nếu lưu số 0, SDRAM bật NMOS của nó để bơm dòng điện dội ngược về phía FPGA. Dòng điện này đi xuyên qua chân I/O đang thả nổi của FPGA, nạp thẳng vào R-FIFO để đưa lên màn hình VGA.</li>
+        </ul>
+    </li>
+    <li><strong>Đặc điểm:</strong> Tốc độ thần tốc (hàng trăm MHz). Nhưng rủi ro <strong>ĐOẢN MẠCH RẤT CAO</strong> nếu mạch Trọng tài (Arbiter) viết sai, dẫn đến việc FPGA và SDRAM vô tình cùng bật Transistor bơm điện vào nhau.</li>
+</ul>
+
+<h4>B. Dây I2C Camera: Cấu trúc Open-Drain (Xả điện & Điện trở kéo lên)</h4>
+<ul>
+    <li><strong>Cấu tạo phần cứng:</strong> Bên trong chân SDA của Camera và FPGA chỉ có <strong>ĐÚNG 1</strong> con Transistor NMOS nối xuống Đất (GND). Bắt buộc phải đấu một con Điện trở Pull-up (một đầu nối vào dây SDA, đầu kia nối thẳng lên nguồn điện 3.3V VCC của bo mạch).</li>
+    <li><strong>Tín hiệu điều khiển:</strong> Phụ thuộc trực tiếp vào dữ liệu muốn truyền: <code>assign SDA = (data == 1'b0) ? 1'b0 : 1'bz;</code></li>
+    <li><strong>Cách hoạt động vật lý:</strong>
+        <ul>
+            <li><strong>Khi truyền số 0:</strong> FPGA/Camera bật con NMOS. Dây SDA bị nối thẳng xuống Đất, điện áp sập về 0V.</li>
+            <li><strong>Khi truyền số 1 HOẶC Lắng nghe:</strong> Cả FPGA và Camera đều ngắt con NMOS. Chân I/O bị thả nổi (Trạng thái Z). Lúc này, Nguồn điện 3.3V (VCC) trên bo mạch sẽ truyền dòng điện đi xuyên qua con Điện trở Pull-up để nạp điện cho đường dây SDA, kéo điện áp dâng lên mức 3.3V. Điện trở không tự sinh ra điện, nó chỉ đóng vai trò là "cái van" giới hạn dòng điện từ nguồn 3.3V, đảm bảo khi Camera kéo dây xuống Đất sẽ không làm chập cháy nguồn điện chính của hệ thống.</li>
+        </ul>
+    </li>
+    <li><strong>Đặc điểm:</strong> Tốc độ rất chậm. Nhưng <strong>TUYỆT ĐỐI AN TOÀN</strong>, không bao giờ đoản mạch dù nhiều chip cùng nói một lúc.</li>
+</ul>
+
+<h3>3.2. Tại sao chúng ta BẮT BUỘC phải tuân theo sự "lề mề" của I2C?</h3>
+<p>Dù trên board mạch DE1 chỉ có duy nhất 1 Master (FPGA) và 1 Slave (Camera OV7670), chúng ta vẫn không thể dùng chế độ Push-Pull tốc độ cao để giao tiếp. Lý do nằm ở 3 nguyên tắc bất di bất dịch sau:</p>
+
+<h4>A. Giới hạn Silicon từ Nhà sản xuất (Bài toán dùng chung "Đường ống" SDA)</h4>
+<p>Con chip OV7670 được hãng OmniVision thiết kế không phải để chạy đơn độc, mà để lắp vào bo mạch điện thoại di động – nơi có hàng chục thiết bị (Camera, La bàn, Cảm biến ánh sáng...) cùng "khoét lỗ" cắm chung vào MỘT đường ống đồng (Bus I2C) duy nhất.</p>
+<ul>
+    <li><strong>Hiểm họa nếu đúc chip theo chuẩn Push-Pull:</strong> Hãy tưởng tượng mỗi con chip được trang bị một máy bơm (PMOS) và một van xả đáy (NMOS). Nếu Cảm biến A đang muốn truyền mức 1 (Bật máy bơm đẩy điện 3.3V vào ống), nhưng Cảm biến B do lỗi nhịp Clock lại muốn truyền mức 0 (Mở toang van xả xuống Đất GND) vào đúng tích tắc đó. Dòng điện 3.3V khổng lồ từ A sẽ phóng thẳng tắp đâm xuyên qua van xả của B. Cú đoản mạch này sẽ nướng chín cả hai con chip ngay lập tức!</li>
+    <li><strong>Giải pháp Open-Drain (Sự im lặng an toàn):</strong> Để hàng chục con chip sống chung hòa bình, I2C tước bỏ hoàn toàn "Máy bơm 3.3V" của tất cả các linh kiện. Bên trong chân SDA của Camera OV7670 chỉ được đúc <strong>ĐÚNG</strong> một cái Van xả đáy xuống Đất. Nhờ vậy, định nghĩa về mức 1 và 0 thay đổi hoàn toàn:
+        <ul>
+            <li><strong>Khi A muốn truyền mức 1:</strong> Nó chỉ việc Đóng kín van xả (Thả nổi/High-Z). Nó trở nên tàng hình, hoàn toàn cách ly và không bơm bất kỳ dòng điện nào vào đường ống. Logic 1 lúc này do Điện trở Pull-up bên ngoài tự bơm vào.</li>
+        </ul>
+    </li>
+    <li><strong>Sự an toàn tuyệt đối:</strong> Lúc này dù Cảm biến B có mở toang van xả (Truyền mức 0), thì dòng điện từ vòi Pull-up 3.3V chỉ trôi tuột qua B xuống Đất. Cảm biến A đang đóng kín cửa nên không bị bất kỳ dòng điện nào đâm sầm vào. Hiện tượng đụng độ giao thông (Bus Collision) bị triệt tiêu 100%! Vì phần cứng Camera OV7670 đã bị đúc cứng bằng Silicon theo chuẩn Open-Drain này, Kỹ sư FPGA khi viết code bắt buộc phải dùng <code>1'bz</code> (Thả nổi) để tương thích, tuyệt đối không được phép làm trái luật.</li>
+</ul>
+
+<h4>B. Ngăn chặn thảm họa Xung đột Giao thông trong Máy trạng thái (FSM)</h4>
+<p>Trong giao thức I2C, đường truyền có những khoảnh khắc giao thời mà quyền điều khiển buộc phải chuyển từ tay Master (FPGA) sang Slave (Camera). Ví dụ điển hình nhất là cờ ACK (Bit thứ 9).</p>
+<ul>
+    <li><strong>Góc nhìn từ Code Verilog (FSM):</strong> Sau khi FPGA truyền xong 8 bit dữ liệu, Máy trạng thái (FSM) của FPGA bắt buộc phải chuyển sang trạng thái WAIT (Chờ đợi). Tại trạng thái này, Code Verilog bắt buộc phải ép chân I/O vào trạng thái thả nổi (<code>assign SDA = 1'bz</code>). Nhờ sự thả nổi này, con Camera mới có không gian tĩnh lặng để giật dây SDA xuống 0V (GND) nhằm báo cáo cờ ACK.</li>
+    <li><strong>Hiểm họa nếu dùng Push-Pull:</strong> Giả sử Kỹ sư code sai FSM, khi vào trạng thái WAIT thay vì thả nổi lại xuất lệnh bơm điện (<code>SDA = 1'b1</code>) để "giữ mức cao". Đúng lúc đó, Camera kéo dây xuống Đất để báo ACK &rarr; Đoản mạch cháy chip!</li>
+    <li><strong>Kết luận:</strong> Nhờ luật Open-Drain, phần cứng tạo ra một "bức tường bảo hiểm" ngăn chặn hoàn toàn nguy cơ đoản mạch dù cho Kỹ sư có sơ suất viết sai logic của Máy trạng thái đi chăng nữa.</li>
+</ul>
+
+<h4>C. Tuyệt chiêu "Đa điện áp" (Voltage Level Shifting)</h4>
+<p>Một lý do thiên tài nữa khiến các nhà sản xuất ép I2C phải dùng Open-Drain (Thả nổi + Kéo lên) chính là khả năng giao tiếp xuyên biên giới điện áp giữa Master và Slave. Trong thực tế, Bo mạch chủ (Master) có thể hoạt động ở mức điện áp 5V, trong khi con Camera (Slave) nhạy cảm chỉ chịu được tối đa 3.3V.</p>
+<ul>
+    <li><strong>Nếu dùng Push-Pull:</strong> Khi Master 5V muốn truyền số 1, nó sẽ bơm thẳng dòng điện 5V sang Camera. Con Camera 3.3V sẽ lập tức bị quá áp và nổ tung.</li>
+    <li><strong>Với Open-Drain thần thánh:</strong> Cả Master và Slave đều bị khóa tính năng bơm điện. Chúng chỉ có thể kéo dây xuống Đất (GND) hoặc Thả nổi. Để tạo ra mức 1, Kỹ sư phần cứng chỉ cần treo con Điện trở Pull-up lên nguồn 3.3V. Lúc này, toàn bộ sợi dây SDA sẽ chỉ dao động an toàn từ 0V đến tối đa 3.3V. Master 5V (nhờ cơ chế nhận diện logic thông minh) vẫn hiểu 3.3V là logic 1, trong khi con Camera 3.3V thì hoàn toàn bình an vô sự!</li>
+</ul>
+
+<blockquote>
+<p><strong>CHỐT HẠ (Kinh nghiệm xương máu):</strong> Khi làm việc bên trong lõi của FPGA, Kỹ sư là những vị thần có thể đặt ra mọi luật lệ. Nhưng một khi tín hiệu thò ra khỏi chân I/O để giao tiếp với linh kiện thương mại bên ngoài (Commercial ICs), Kỹ sư bắt buộc phải hạ mình tuân thủ 100% tài liệu kỹ thuật (Datasheet) của nhà sản xuất. Không có ngoại lệ ở thế giới vật lý!</p>
+</blockquote>
+
+<h2>4. Phân biệt "Đồng bộ (Synchronous)" và "Bất đồng bộ (Async CDC)"</h2>
 <p>Khối Hộp số I2C này <strong>KHÔNG</strong> hề sử dụng FIFO Bất đồng bộ (Dual-Clock Async FIFO), và cũng <strong>KHÔNG</strong> xử lý nhiễu đa xung nhịp (Clock Domain Crossing - CDC). </p>
 <ul>
 <li>Toàn bộ quá trình tạo sóng SCL đều nằm hoàn toàn trong <strong>"Vương quốc 50MHz"</strong> của FPGA. Thiết kế này là Đồng bộ hoàn toàn (Fully Synchronous).</li>
