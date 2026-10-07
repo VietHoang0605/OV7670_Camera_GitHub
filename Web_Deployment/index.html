@@ -644,14 +644,36 @@ Do đó, ta không thể nối ống trực tiếp từ Hồ SDRAM (vốn có đ
 <h3>3.1. Sự khác biệt cốt lõi: Mạch CMOS Push-Pull (SDRAM) vs Cực máng hở Open-Drain (I2C)</h3>
 <h4>A. Bus Dữ liệu SDRAM: Cấu trúc Push-Pull CMOS (Luân phiên Bơm/Thả nổi)</h4>
 <ul>
-    <li><strong>Bản chất phần cứng:</strong> Ở cả 2 đầu của đường dây truyền (phía con chip FPGA và phía con chip SDRAM) đều được trang bị một cặp "cơ bắp" Transistor khổng lồ: con PMOS nối trực tiếp lên Nguồn (3.3V) và con NMOS nối trực tiếp xuống Đất (GND). <strong>Quy luật sinh tử của Bus 2 chiều là: Khi anh này gồng cơ bắp bơm điện, anh kia bắt buộc phải thả lỏng (Thả nổi/High-Z) để hứng.</strong></li>
+    <li><strong>Bản chất phần cứng:</strong> Ở cả 2 đầu của đường dây truyền (phía con chip FPGA và phía con chip SDRAM) đều được trang bị một cặp "cơ bắp" Transistor khổng lồ: con PMOS nối trực tiếp lên Nguồn (3.3V) và con NMOS nối trực tiếp xuống Đất (GND). Quy luật sinh tử của Bus 2 chiều là: Khi anh này gồng cơ bắp bơm điện, anh kia bắt buộc phải thả lỏng (Thả nổi/High-Z) để hứng.</li>
     <li><strong>Cơ chế dịch Code (Synthesizing) tại FPGA:</strong> Khi Kỹ sư gõ: <code>assign SDRAM_DQ = (sdram_wr_en) ? w_fifo_data : 16'bz;</code> Phần mềm Quartus sẽ đấu thẳng 2 biến <code>sdram_wr_en</code> (Cờ điều khiển) và <code>w_fifo_data</code> (Dữ liệu) vào "Bộ não" điều khiển cặp PMOS/NMOS bên trong FPGA.</li>
-    <li><strong>Quá trình giao tiếp luân phiên trong Hệ thống:</strong>
-        <ul>
-            <li><strong>Chiều 1: FPGA Ghi dữ liệu vào SDRAM (Quá trình Bơm):</strong> Lúc này, chân I/O của FPGA tuyệt đối không được thả nổi. FPGA dùng quyền năng của mình, nhìn vào biến <code>w_fifo_data</code> (hút từ W-FIFO): Nếu là 1, FPGA bật PMOS; nếu là 0, FPGA bật NMOS. Cứ thế nó bơm điện áp cực mạnh ép dữ liệu vào đường dây. Để hứng được luồng dữ liệu vũ bão này, con chip SDRAM phải tự động cúp cầu dao, thả nổi cặp PMOS/NMOS của chính nó để há miệng cho dòng điện từ FPGA chảy tọt vào lõi bộ nhớ.</li>
-            <li><strong>Chiều 2: SDRAM đẩy dữ liệu ra R-FIFO (Quá trình Đọc):</strong> Lúc này quyền trượng đảo ngược. Mạch logic của FPGA (<code>sdram_wr_en = 0</code>) ra lệnh khóa tử, ép chân I/O của FPGA rơi vào trạng thái thả nổi (Trở kháng cao - High-Z). FPGA ngắt điện cặp PMOS/NMOS của nó, chỉ há miệng ra để hứng. Ngay khi FPGA buông tay, con chip SDRAM đoạt quyền kiểm soát. Nó tự nhìn vào từng ô nhớ bên trong lõi: Nếu lưu số 1, SDRAM bật PMOS của nó; nếu lưu số 0, SDRAM bật NMOS của nó để bơm dòng điện dội ngược về phía FPGA. Dòng điện này đi xuyên qua chân I/O đang thả nổi của FPGA, nạp thẳng vào R-FIFO để đưa lên màn hình VGA.</li>
-        </ul>
-    </li>
+</ul>
+
+<p><strong>Quá trình giao tiếp luân phiên được điều phối bởi Trọng tài (Arbiter):</strong> Bên trong lõi FPGA, W-FIFO và R-FIFO là 2 module hoàn toàn tách biệt với các đường dữ liệu độc lập. Tuy nhiên, khi giao tiếp với thẻ nhớ SDRAM bên ngoài, cả 2 module này bắt buộc phải dùng chung cụm 16 chân vật lý SDRAM_DQ trên vỏ con chip FPGA. Vì chỉ có 1 đường Bus duy nhất, khối Trọng tài (Arbiter) phải chủ động can thiệp để chia thời gian (Half-Duplex), đảm bảo 2 quá trình Ghi/Đọc không bao giờ giẫm chân lên nhau.</p>
+<ul>
+    <li><strong>Chiều 1: Bơm dữ liệu từ W-FIFO vào SDRAM (Quá trình Ghi):</strong> Khối Trọng tài cấp quyền Ghi, mạch logic bên trong lập tức ép cụm chân SDRAM_DQ của FPGA tuyệt đối không được thả nổi. Lúc này, cụm chân SDRAM_DQ đóng vai trò là "Máy bơm": Nó nhìn vào biến <code>w_fifo_data</code> (hút từ W-FIFO), bật PMOS hoặc NMOS để bơm điện áp cực mạnh ép dữ liệu ra đường dây. Để hứng được luồng dữ liệu vũ bão này, con chip SDRAM bên ngoài phải tự động cúp cầu dao, thả nổi cặp PMOS/NMOS của chính nó để há miệng cho dòng điện từ FPGA chảy tọt vào lõi bộ nhớ.</li>
+    <li><strong>Chiều 2: SDRAM đẩy dữ liệu dội ngược về R-FIFO (Quá trình Đọc):</strong> Khối Trọng tài chủ động ngắt luồng Ghi và cấp quyền Đọc. Mạch logic (<code>sdram_wr_en = 0</code>) ra lệnh khóa tử, ép cụm chân SDRAM_DQ của FPGA rơi vào trạng thái thả nổi (Trở kháng cao - High-Z). Ngay khi FPGA buông tay, con chip SDRAM đoạt quyền kiểm soát đường dây. Nó tự nhìn vào từng ô nhớ bên trong lõi, bật PMOS/NMOS của nó để bơm dòng điện dội ngược về phía FPGA.</li>
+</ul>
+
+<div class="note-box" style="background: rgba(56, 189, 248, 0.1); border-left: 4px solid #38bdf8; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+    <strong style="color: #38bdf8;">💡 Góc nhìn Giải phẫu vật lý: Làm sao dòng điện chui vào được FPGA khi chân I/O đang "Thả nổi" (Trở kháng cao)?</strong><br>
+    Đối với người mới, "Thả nổi" (High-Z) nghe giống như một bức tường cách điện tuyệt đối, ngăn chặn mọi dòng điện. Thực chất, ngay sau lớp vỏ đồng của chân I/O, mạch điện được chia làm một Ngã ba hình chữ Y:
+    <ul style="margin-top: 10px;">
+        <li><strong>Nhánh Phát (Output Driver - "Cái máy bơm"):</strong> Chứa cặp PMOS/NMOS. Câu lệnh thả nổi <code>16'bz</code> CHỈ tác động lên nhánh này, cúp cầu dao ngắt "Máy bơm" ra khỏi chân đồng. Bức tường cách điện (High-Z) chỉ nằm ở đường đi ra này.</li>
+        <li><strong>Nhánh Thu (Input Receiver - "Cái vôn kế"):</strong> Câu lệnh <code>wire read_data = SDRAM_DQ;</code> chính là nhánh này. Nó đấu song song với Nhánh Phát và đi thẳng vào lõi FPGA. Cấu tạo của nó giống hệt một chiếc đồng hồ VOM (trở kháng đầu vào cực lớn). Nó KHÔNG BAO GIỜ bị ngắt, không chặn dòng điện, mà chỉ "chạm nhẹ" vào chân đồng để đo xem áp suất điện đang là 3.3V hay 0V 24/24.</li>
+    </ul>
+    &rarr; Khi SDRAM đẩy dữ liệu về, dòng điện chạm vào chân đồng, bị Nhánh Phát (High-Z) chặn lại, nhưng ngay lập tức bị Nhánh Thu (Vôn kế) đo được và dịch thành bit 0/1 nạp thẳng vào khối R-FIFO!
+</div>
+
+<div class="note-box" style="background: rgba(249, 115, 22, 0.1); border-left: 4px solid #f97316; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+    <strong style="color: #f97316;">💡 Góc nhìn Logic: Biến wire sẽ đọc được chữ gì khi FPGA phát ra chữ Z?</strong><br>
+    Một điểm "xoắn não" kinh điển trong Verilog: Nếu máy phát nhả ra <code>16'bz</code>, thì máy thu sẽ nhận được gì? Cần nhớ rằng, chữ Z không phải là một điện áp vật lý, nó chỉ mang ý nghĩa "Rút tay lại". Biến wire của Nhánh Thu luôn phản chiếu mù quáng sự thật vật lý đang diễn ra trên dây đồng:
+    <ul style="margin-top: 10px;">
+        <li><strong>Trường hợp 1 (Quá trình Đọc SDRAM):</strong> FPGA thả nổi (Z), nhưng SDRAM đang tích cực bơm chuỗi bit <code>1010</code>. Sợi dây vật lý mang điện áp 1010, biến wire sẽ đọc được hoàn hảo dữ liệu <code>1010</code>.</li>
+        <li><strong>Trường hợp 2 (Hệ thống nghỉ ngơi - Idle):</strong> Cả FPGA và SDRAM đều thả nổi. Sợi dây đồng bị bỏ hoang, biến thành một cái "ăng-ten" hút nhiễu vô tuyến từ môi trường. Lúc này biến wire sẽ đọc ra toàn <strong>RÁC (Garbage data)</strong> - các bit 0 và 1 nhảy múa loạn xạ!</li>
+    </ul>
+    <strong>Sự thông minh của Trọng tài (Arbiter):</strong> Dù biến wire liên tục đọc rác 24/24, hệ thống vẫn an toàn tuyệt đối nhờ Cờ cho phép ghi <code>r_fifo_wr_en</code>. Khi hệ thống nghỉ ngơi, Trọng tài gán cờ này bằng 0, đóng chặt cửa R-FIFO chặn đứng toàn bộ đống rác. Nó chỉ mở cửa (<code>r_fifo_wr_en = 1</code>) vào đúng những nhịp Clock mà nó biết chắc chắn SDRAM đang gửi dữ liệu chuẩn xác!
+</div>
+<ul>
     <li><strong>Đặc điểm:</strong> Tốc độ thần tốc (hàng trăm MHz). Nhưng rủi ro <strong>ĐOẢN MẠCH RẤT CAO</strong> nếu mạch Trọng tài (Arbiter) viết sai, dẫn đến việc FPGA và SDRAM vô tình cùng bật Transistor bơm điện vào nhau.</li>
 </ul>
 
@@ -701,6 +723,7 @@ Do đó, ta không thể nối ống trực tiếp từ Hồ SDRAM (vốn có đ
 <blockquote>
 <p><strong>CHỐT HẠ (Kinh nghiệm xương máu):</strong> Khi làm việc bên trong lõi của FPGA, Kỹ sư là những vị thần có thể đặt ra mọi luật lệ. Nhưng một khi tín hiệu thò ra khỏi chân I/O để giao tiếp với linh kiện thương mại bên ngoài (Commercial ICs), Kỹ sư bắt buộc phải hạ mình tuân thủ 100% tài liệu kỹ thuật (Datasheet) của nhà sản xuất. Không có ngoại lệ ở thế giới vật lý!</p>
 </blockquote>
+
 
 <h2>4. Phân biệt "Đồng bộ (Synchronous)" và "Bất đồng bộ (Async CDC)"</h2>
 <p>Khối Hộp số I2C này <strong>KHÔNG</strong> hề sử dụng FIFO Bất đồng bộ (Dual-Clock Async FIFO), và cũng <strong>KHÔNG</strong> xử lý nhiễu đa xung nhịp (Clock Domain Crossing - CDC). </p>
