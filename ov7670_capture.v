@@ -8,8 +8,7 @@
 //                 ghép 2 byte liên tiếp thành 1 pixel 16-bit (RGB565),
 //                 quản lý con trỏ địa chỉ pixel (addr) và xung ghi (we) vào FIFO.
 //
-// Author:         Agent 2 - Chuyên gia Scaffolding & Review Code
-// Reviewer:       Sếp (Hardware Lead)
+
 // ============================================================================
 
 module ov7670_capture (
