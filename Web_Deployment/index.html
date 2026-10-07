@@ -761,7 +761,6 @@ Biến <code>tick_4x</code> này hoạt động như một cờ Clock Enable. Kh
 </blockquote>
 <hr />
 <h1>III. LÝ THUYẾT DVP CAPTURE VÀ PING-PONG SDRAM</h1>
-<h2>1. Bản chất của khối DVP Capture</h2>
 <p>Khối DVP (Digital Video Port) Capture đóng vai trò là giao diện trực tiếp đầu tiên giữa FPGA và cảm biến quang học. Đây là cánh cổng thu nhận luồng dữ liệu liên tục từ thế giới thực. Bất kỳ sự sai lệch nào về xung nhịp (Clock) tại khối này đều sẽ dẫn đến việc sai lệch toàn bộ cấu trúc điểm ảnh của khung hình.</p>
 <h2>1. Kiến trúc tổng thể và Giải phẫu tín hiệu DVP chi tiết</h2>
 <p><strong>A. Nhận diện Đầu vào (Input) – "Nguyên liệu thô từ mỏ":</strong>
@@ -793,11 +792,12 @@ Hãy tưởng tượng luồng chảy dữ liệu của khối DVP Capture giố
 4. <strong>Xuất xưởng:</strong> Ngay tại nhịp thứ 2, máy ép 2 viên kẹo 8-gram lại với nhau thành 1 gói 16-gram (<code>pixel_data</code>), lập tức bật đèn xanh (<code>pixel_valid</code>) và quăng tọt vào thùng chứa phía sau (chính là Async FIFO). Quá trình này lặp lại liên tục cho đến hết hàng.
 5. <strong>Qua ngày mới (VSYNC):</strong> Khi cờ <code>VSYNC</code> phất lên, giám đốc xưởng hô to: "Xong một bức tranh kẹo! Quét sạch phễu chứa, reset bộ đếm, chuẩn bị đón ca mới!".</p>
 <h2>2. Nghệ thuật ghép ảnh RGB565: Bức Tranh 16-bit Từ Mảnh Ghép 8-bit</h2>
-<p>Camera truyền dữ liệu theo chuẩn màu RGB565, tức là một điểm ảnh (Pixel) cần 16-bit (5 bit Đỏ, 6 bit Xanh lá, 5 bit Xanh dương). Nhưng dây chuyền D[7:0] chỉ rộng 8-bit!
-<strong>Cách giải quyết của luồng dữ liệu (Data flow):</strong> 1 Pixel (16-bit) = 2 nhịp PCLK.
-- <strong>Nhịp PCLK thứ 1 (Bắt Byte Cao):</strong> Khi <code>HREF = 1</code>, ta bắt lấy 8-bit đầu tiên (R[4:0] và G[5:3]). Logic cần phải lưu nó vào một thanh ghi tạm (latch/buffer).
-- <strong>Nhịp PCLK thứ 2 (Bắt Byte Thấp):</strong> Bắt lấy 8-bit tiếp theo (G[2:0] và B[4:0]).
-- <strong>Đóng gói (Packing):</strong> Khối DVP sẽ ghép "Byte Cao" đang chờ sẵn và "Byte Thấp" vừa tới thành một từ 16-bit hoàn chỉnh và bật cờ tín hiệu <code>pixel_valid</code> để đẩy đi tiếp.</p>
+<p>Camera truyền dữ liệu theo chuẩn màu RGB565, tức là một điểm ảnh (Pixel) cần 16-bit (5 bit Đỏ, 6 bit Xanh lá, 5 bit Xanh dương). Nhưng dây chuyền D[7:0] chỉ rộng 8-bit! <strong>Cách giải quyết của luồng dữ liệu (Data flow):</strong> 1 Pixel (16-bit) = 2 nhịp PCLK.</p>
+<ul>
+    <li><strong>Nhịp PCLK thứ 1 (Bắt Byte Cao):</strong> Khi <code>HREF = 1</code>, ta bắt lấy 8-bit đầu tiên (R[4:0] và G[5:3]). Logic cần phải lưu nó vào một thanh ghi tạm (latch/buffer).</li>
+    <li><strong>Nhịp PCLK thứ 2 (Bắt Byte Thấp):</strong> Bắt lấy 8-bit tiếp theo (G[2:0] và B[4:0]).</li>
+    <li><strong>Đóng gói (Packing):</strong> Khối DVP sẽ ghép "Byte Cao" đang chờ sẵn và "Byte Thấp" vừa tới thành một từ 16-bit hoàn chỉnh và bật cờ tín hiệu <code>pixel_valid</code> để đẩy đi tiếp.</li>
+</ul>
 <h2>3. Cầu nối Async FIFO: Vượt Qua Khoảng Cách Không Gian - Thời Gian (Clock Domain)</h2>
 <p>Khối DVP Capture hoạt động <strong>HOÀN TOÀN</strong> dựa trên xung <strong>PCLK của Camera</strong>, KHÔNG DÙNG xung nội hệ thống của FPGA. 
 Nó đem dữ liệu 16-bit đóng gói đẩy vào một <strong>Async FIFO</strong> (Bộ đệm FIFO bất đồng bộ). Đầu kia của FIFO (Read Domain) sẽ được điều khiển bởi khối xử lý hệ thống bằng xung nhịp 50/100MHz. Thiết kế này giúp hai miền xung nhịp (Clock Domains) độc lập, không dẫm đạp lên nhau!</p>
