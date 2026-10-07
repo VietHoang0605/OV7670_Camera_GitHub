@@ -880,19 +880,73 @@ end</code></pre>
     </li>
 </ul>
 
-<h2>5. Nâng cấp Kiến trúc: Tại sao phải chuyển từ Line Buffer lên Ping-Pong Frame Buffer?</h2>
-<p>Trong các thiết kế xử lý ảnh tĩnh cơ bản, người ta thường dùng <strong>Line Buffer</strong> (chỉ đệm 1-2 hàng điểm ảnh) hoặc <strong>Single Buffer</strong> (chỉ dùng 1 kho duy nhất). Nhưng đối với hệ thống Camera thời gian thực, đây là một thiết kế tiềm ẩn rủi ro rất lớn mang tên <strong>Xé hình (Screen Tearing)</strong>.</p>
-<p><strong>1. Thảm họa chênh lệch tốc độ (Tearing Disaster)</strong>
-- Tốc độ "bơm" của Camera (Write): Chạy bằng xung <code>PCLK</code> ~24MHz, nhưng cần 2 nhịp mới ra được 1 pixel. Tốc độ bơm thực tế chỉ khoảng <strong>12 Triệu pixel/giây (30fps)</strong>.
-- Tốc độ "hút" của VGA (Read): Màn hình 640x480@60Hz yêu cầu chốt pixel liên tục ở mức <strong>25 Triệu pixel/giây (60fps)</strong>.
-- <strong>Hệ quả:</strong> Đầu hút VGA chạy nhanh gấp đôi đầu bơm Camera! Nếu bắt chúng dùng chung 1 cái Line Buffer hoặc 1 Frame Buffer duy nhất, VGA sẽ nhanh chóng "chạy vượt mặt" Camera. Khi đó trên màn hình, nửa trên sẽ là ảnh của khung hình mới, nửa dưới lại là ảnh của khung hình cũ chắp vá lại, gây giật lag và xé hình trầm trọng.</p>
-<p><strong>2. Giải pháp tối thượng: Ping-Pong Frame Buffer (Đệm kép luân phiên)</strong>
-Để giải quyết triệt để, hệ thống quy hoạch chip SDRAM thành 2 "mảnh đất" khổng lồ: <strong>Bank 0</strong> và <strong>Bank 1</strong> (sử dụng bit cao nhất của địa chỉ làm cờ chọn Bank).
-- <strong>Cơ chế cách ly:</strong> Khối Camera cứ việc hì hục đổ đất (Write) vào <strong>Bank 0</strong>, trong khi khối VGA cứ ung dung lấy đất (Read) từ <strong>Bank 1</strong> ra vẽ. Hai người công nhân làm việc ở 2 kho hoàn toàn cách biệt, không bao giờ dẫm chân lên nhau.
-- <strong>Cơ chế đổi ca (Swap Bank):</strong> Ngay khi sườn xuống của tín hiệu <code>camera_vsync</code> xuất hiện (báo hiệu Camera đã chụp xong trọn vẹn 1 bức ảnh vào Bank 0), khối SDRAM Arbiter sẽ lập tức hoán đổi vị trí:
-  - Khung hình tiếp theo, Camera chuyển sang cày cuốc ở <strong>Bank 1</strong>.
-  - VGA được cấp quyền sang <strong>Bank 0</strong> để hút bức ảnh mới nhất vừa ra lò.</p>
-<p>Thiết kế Ping-Pong Buffer này là tiêu chuẩn vàng (Golden Standard) trong công nghiệp truyền phát Video, giúp luồng ảnh chảy mượt mà 100% bất chấp sự sai lệch tốc độ giữa thiết bị thu và thiết bị phát!</p>
+<h2>5. Nâng cấp Kiến trúc: Tại sao phải chuyển từ Single Buffer lên Ping-Pong Frame Buffer?</h2>
+<p>Trong các thiết kế xử lý ảnh cơ bản, người ta thường dùng phương pháp <strong>Single Buffer</strong> (Đệm 1 kho). Nguyên lý rất đơn giản: Khối Camera cứ việc chép đè điểm ảnh mới vào một vùng SDRAM duy nhất, còn khối VGA thì cứ hút dữ liệu từ vùng đó ra để bắn lên màn hình. Nhưng đối với hệ thống Camera thời gian thực, thiết kế "1 kho chung" này sẽ dẫn đến một thảm họa thị giác.</p>
+
+<h3>5.1. Thảm họa chênh lệch tốc độ (Screen Tearing)</h3>
+<ul>
+    <li><strong>Tốc độ "bơm" của Camera (Write):</strong> Camera chạy bằng xung PCLK ~24MHz, cần 2 nhịp mới ra được 1 pixel. Tốc độ thực tế Camera vẽ xong 1 bức tranh là 30fps (30 khung hình/giây).</li>
+    <li><strong>Tốc độ "hút" của VGA (Read):</strong> Màn hình 640x480@60Hz quét pixel liên tục với xung 25MHz. Tốc độ VGA vẽ xong 1 bức tranh lên màn hình là 60fps (60 khung hình/giây).</li>
+    <li><strong>Hệ quả (VGA chạy vượt mặt Camera):</strong> Vì khối VGA chạy nhanh gấp đôi Camera, khi bắt chúng dùng chung 1 kho SDRAM, VGA sẽ chép dữ liệu cũ và vượt qua cả tọa độ mà Camera đang viết dữ liệu mới. Màn hình sẽ hiển thị một sản phẩm lỗi: Nửa trên là ảnh của khung hình Mới, nửa dưới vẫn là ảnh của khung hình Cũ. Ranh giới giữa 2 nửa này sinh ra một vết nứt gãy ngang màn hình, gọi là hiện tượng <strong>Xé hình (Tearing)</strong>.</li>
+</ul>
+
+<h3>5.2. Giải pháp tối thượng: Ping-Pong Frame Buffer</h3>
+<p>Để giải quyết triệt để, hệ thống quy hoạch con chip SDRAM khổng lồ thành 2 phân vùng hoàn toàn độc lập: <strong>Bank 0</strong> và <strong>Bank 1</strong>.</p>
+<p><strong>Mô hình Trừu tượng (Hệ thống 2 Bể nước A và B):</strong> Dòng suối Camera hì hục bơm nước (Write) vào Bể A. Cùng lúc đó, khối hiển thị VGA ung dung hút nước (Read) từ Bể B ra để dùng. Hai quá trình này diễn ra cách biệt, đảm bảo dữ liệu mà khối VGA lấy ra luôn là một khối nước (khung hình) đã được nạp đầy trọn vẹn, triệt tiêu hoàn toàn sự xáo trộn hay chắp vá. Ngay khi Bể A vừa được bơm đầy (báo hiệu bằng cờ VSYNC), hệ thống gạt cần hoán đổi: Khối VGA chuyển sang hút nguồn nước mới nhất từ Bể A, còn luồng Camera lại quay sang bơm nạp vào Bể B vừa cạn!</p>
+
+<h3>5.3. Bằng chứng Thực tế và Phân tích Logic Code (sdram_arbiter.v)</h3>
+<p><strong>1. Cờ chọn Bank nằm ở đâu trong chuỗi bit?</strong><br>
+Với bức ảnh VGA 640x480, ta cần 307.200 ô nhớ, tức là cần 19 bit địa chỉ (<code>addr[18:0]</code>). Hệ thống sử dụng bit thứ 19 của tổng địa chỉ SDRAM 22-bit làm Cờ Chọn Bể (Bank Select):</p>
+<pre><code class="language-verilog">// Khi VGA yêu cầu Đọc: Cờ bank_read sẽ quyết định rút dữ liệu từ Bể 0 hay Bể 1
+sys_addr &lt;= {2'b00, bank_read, read_addr[18:0]};
+// Khi Camera yêu cầu Ghi: Cờ bank_write quyết định chép dữ liệu vào Bể 0 hay Bể 1
+sys_addr &lt;= {2'b00, bank_write, write_addr[18:0]};</code></pre>
+<p>Chỉ bằng 1 bit 0 hoặc 1, dữ liệu được tách biệt vào 2 không gian bộ nhớ cách nhau hơn 524 ngàn địa chỉ, bảo vệ 100% tính toàn vẹn của khung hình.</p>
+
+<p><strong>2. Logic "Gạt cần" hoán đổi Bể (Swap Logic) hoạt động ra sao?</strong><br>
+Sự hoán đổi luân phiên này được vận hành bởi một tập hợp biến trạng thái tinh gọn, được kích hoạt vào đúng tích tắc Sườn xuống (Falling Edge) của tín hiệu VSYNC.</p>
+<p><em>Từ điển Biến số sử dụng:</em></p>
+<ul>
+    <li><code>camera_vsync_d1, camera_vsync_d2</code> (1-bit): Các thanh ghi trễ (D-FlipFlop) lưu lịch sử 2 nhịp quá khứ của chân VSYNC.</li>
+    <li><code>camera_vsync_falling</code> (1-bit wire): Cờ kích hoạt. Nó chỉ chớp lên mức 1 duy nhất trong 1 chu kỳ khi trạng thái cũ (d2) là 1 và mới (d1) rớt xuống 0.</li>
+    <li><code>bank_write</code> (1-bit): Bể (0 hoặc 1) mà Camera đang trực tiếp bơm dữ liệu vào.</li>
+    <li><code>bank_completed</code> (1-bit): Bể chứa bức ảnh nguyên vẹn vừa mới được bơm xong (Thành phẩm).</li>
+    <li><code>write_addr</code> (19-bit): Biến đếm tọa độ ô nhớ của SDRAM.</li>
+</ul>
+
+<p><strong>Cơ chế gạt cần của Camera (Khi vừa kết thúc 1 bức ảnh):</strong></p>
+<pre><code class="language-verilog">wire camera_vsync_falling = (camera_vsync_d2 &amp;&amp; !camera_vsync_d1);
+if (camera_vsync_falling) begin
+    bank_completed &lt;= bank_write;     // [1] Cập nhật Thành phẩm: Lấy Bể vừa bơm xong đóng dấu chứng nhận
+    bank_write     &lt;= ~bank_write;    // [2] Đảo Bể bơm: Lật bit (0->1, 1->0) để Camera bơm sang Bể đối diện
+    write_addr     &lt;= 19'd0;          // [3] Reset tọa độ bơm về 0
+end</code></pre>
+
+<p><strong>Cơ chế gạt cần của VGA (Khi vẽ xong màn hình hiện tại):</strong></p>
+<pre><code class="language-verilog">if (vsync_req) begin 
+    bank_read &lt;= bank_completed;      // Lấy Bể thành phẩm mới nhất ra để vẽ
+    read_addr &lt;= 19'd0;               // Reset tọa độ hút về 0
+end</code></pre>
+
+<h3>5.4. 💡 Góc nhìn Chuyên sâu: Tại sao khối Arbiter phải dùng d1, d2 để bắt VSYNC?</h3>
+<p>Nhiều người sẽ thắc mắc: Tại sao ở khối <code>ov7670_capture</code> chỉ cần viết <code>if (vsync == 1)</code> là đủ, mà ở <code>sdram_arbiter</code> lại phải đẻ ra 2 thanh ghi d1, d2 để bắt sườn xuống? Câu trả lời nằm ở bản chất của Hành động và Miền xung nhịp:</p>
+
+<p><strong>Lý do 1: Bắt Mức (Level) vs Bắt Sườn (Edge)</strong></p>
+<ul>
+    <li><strong>Ở khối Capture (ov7670_capture.v):</strong> Ta muốn <strong>Ghim giữ</strong> các giá trị tọa độ ở mức 0 trong suốt thời gian Camera nghỉ giải lao (Blanking). Việc khối lệnh này bị gọi liên tục hàng chục ngàn lần trong lúc <code>vsync</code> bằng 1 là điều ta mong muốn để ghim chặt hệ thống ở trạng thái an toàn. Do đó, lệnh <code>if</code> kiểm tra theo <strong>Mức (Level)</strong> là hoàn toàn chính xác:
+        <pre><code class="language-verilog">if (vsync == 1'b1) begin // Bắt Mức: VSYNC cứ giữ ở mức 1 là lệnh bên trong cứ chạy
+    addr     &lt;= 19'd0;   // Liên tục ghim địa chỉ về 0
+    byte_sel &lt;= 1'b0;    // Liên tục ghim cờ chọn byte về 0
+    we       &lt;= 1'b0;    // Liên tục ghim cờ ghi về 0 (khóa an toàn)
+end</code></pre>
+    </li>
+    <li><strong>Ở khối Arbiter (sdram_arbiter.v):</strong> Ta muốn thực hiện hành động <strong>Đảo trạng thái Bể luân phiên</strong> (<code>bank_write &lt;= ~bank_write</code>). Nếu ta cũng dùng lệnh bắt Mức <code>if (camera_vsync == 1)</code> như trên, lệnh đảo bit này sẽ bị thực thi hàng triệu lần liên tiếp, tráo Bể điên cuồng như máy xay sinh tố. Ta bắt buộc phải dùng d1, d2 để <strong>bắt Sườn (Edge)</strong> – so sánh Hiện tại và Quá khứ – nhằm đảm bảo việc gạt cần hoán đổi chỉ diễn ra ĐÚNG 1 LẦN DUY NHẤT cho mỗi khung hình.</li>
+</ul>
+
+<div class="note-box" style="background: rgba(56, 189, 248, 0.1); border-left: 4px solid #38bdf8; padding: 15px; margin-top: 15px; border-radius: 4px;">
+    <strong>Lý do 2: Mạch đồng bộ chống lơ lửng (CDC Synchronizer)</strong><br>
+    Tín hiệu <code>vsync</code> sinh ra từ Camera chạy ở 24MHz, nhưng khối Arbiter chạy ở 50MHz. Đưa thẳng một tín hiệu khác Clock Domain vào mạch logic sẽ vi phạm Setup/Hold time, sinh ra Metastability. Hai thanh ghi d1, d2 mắc nối tiếp nhau tạo thành một mạch <strong>Double-Flop Synchronizer kinh điển</strong> để cách ly và triệt tiêu lỗi lơ lửng này!
+</div>
 <hr />
 <blockquote>
 <p><em>Quá trình triển khai lý thuyết thiết kế lên phần cứng vật lý luôn đi kèm với các thách thức về định thời (Timing) và đồng bộ. Dưới đây là Nhật ký khắc phục sự cố (Debug Log) ghi lại toàn bộ quá trình tối ưu hóa hệ thống, minh chứng cho phương pháp cô lập lỗi và phân tích tín hiệu (Waveform Analysis).</em> </p>
