@@ -792,37 +792,94 @@ Hãy tưởng tượng luồng chảy dữ liệu của khối DVP Capture giố
 4. <strong>Xuất xưởng:</strong> Ngay tại nhịp thứ 2, máy ép 2 viên kẹo 8-gram lại với nhau thành 1 gói 16-gram (<code>pixel_data</code>), lập tức bật đèn xanh (<code>pixel_valid</code>) và quăng tọt vào thùng chứa phía sau (chính là Async FIFO). Quá trình này lặp lại liên tục cho đến hết hàng.
 5. <strong>Qua ngày mới (VSYNC):</strong> Khi cờ <code>VSYNC</code> phất lên, giám đốc xưởng hô to: "Xong một bức tranh kẹo! Quét sạch phễu chứa, reset bộ đếm, chuẩn bị đón ca mới!".</p>
 <h2>2. Nghệ thuật ghép ảnh RGB565: Bức Tranh 16-bit Từ Mảnh Ghép 8-bit</h2>
-<p>Camera truyền dữ liệu theo chuẩn màu RGB565, tức là một điểm ảnh (Pixel) cần 16-bit (5 bit Đỏ, 6 bit Xanh lá, 5 bit Xanh dương). Nhưng dây chuyền D[7:0] chỉ rộng 8-bit! <strong>Cách giải quyết của luồng dữ liệu (Data flow):</strong> 1 Pixel (16-bit) = 2 nhịp PCLK.</p>
+
+<p>Camera OV7670 xuất ảnh theo chuẩn màu RGB565, tức là một điểm ảnh (Pixel) cần đến 16-bit dữ liệu (5 bit Đỏ, 6 bit Xanh lá, 5 bit Xanh dương). Tuy nhiên, cáp truyền dữ liệu phần cứng D[7:0] của Camera lại chỉ rộng có 8-bit! Để giải quyết giới hạn vật lý này, Camera bắt buộc phải truyền 1 Pixel trong 2 nhịp xung nhịp (PCLK) liên tiếp.</p>
+
+<p><strong>Vấn đề đặt ra là:</strong> Làm sao phần cứng FPGA biết được cái Byte 8-bit đang chạy tới là nửa đầu (Byte Cao) hay nửa sau (Byte Thấp) của điểm ảnh để mà ghép cho đúng?</p>
+
+<p><strong>Giải pháp: Linh hồn của module Capture - Cờ luân phiên <code>byte_sel</code></strong><br>
+Kỹ sư thiết kế đã sử dụng một thanh ghi 1-bit tên là <code>byte_sel</code> đóng vai trò như một con lắc đồng hồ, lật qua lật lại ở mỗi nhịp PCLK hợp lệ (khi <code>href == 1</code>) để điều phối thuật toán "Gắp kẹo 2 nhịp" như sau:</p>
+
 <ul>
-    <li><strong>Nhịp PCLK thứ 1 (Bắt Byte Cao):</strong> Khi <code>HREF = 1</code>, ta bắt lấy 8-bit đầu tiên (R[4:0] và G[5:3]). Logic cần phải lưu nó vào một thanh ghi tạm (latch/buffer).</li>
-    <li><strong>Nhịp PCLK thứ 2 (Bắt Byte Thấp):</strong> Bắt lấy 8-bit tiếp theo (G[2:0] và B[4:0]).</li>
-    <li><strong>Đóng gói (Packing):</strong> Khối DVP sẽ ghép "Byte Cao" đang chờ sẵn và "Byte Thấp" vừa tới thành một từ 16-bit hoàn chỉnh và bật cờ tín hiệu <code>pixel_valid</code> để đẩy đi tiếp.</li>
+    <li><strong>Bước 0: Đồng bộ hóa (Reset)</strong><br>
+    Mỗi khi một khung hình mới bắt đầu (cờ <code>vsync</code> nháy lên), hệ thống bắt buộc phải gán cờ <code>byte_sel = 0</code>. Thao tác này cực kỳ quan trọng để "căn lề", đảm bảo byte đầu tiên rơi xuống của một bức tranh luôn luôn được định nghĩa là Byte Cao.</li>
+    
+    <li><strong>Bước 1: Bắt Byte Cao (Khi <code>byte_sel == 0</code>)</strong><br>
+    Ở nhịp PCLK đầu tiên, Camera đẩy 8-bit nửa đầu của điểm ảnh ra dây D[7:0] (Gồm 5 bit Đỏ và 3 bit Xanh lá).<br>
+    FPGA bắt lấy 8-bit này và cất tạm vào một chiếc túi lưu trữ nội bộ tên là <code>byte_high</code>.<br>
+    Lúc này, cờ cho phép ghi vào FIFO (<code>we</code>) vẫn bị khóa ở mức 0 vì điểm ảnh chưa được lắp ráp hoàn thiện.<br>
+    Sau đó, con lắc <code>byte_sel</code> tự động cộng thêm 1, lật sang trạng thái 1.</li>
+    
+    <li><strong>Bước 2: Bắt Byte Thấp & Đóng gói xuất xưởng (Khi <code>byte_sel == 1</code>)</strong><br>
+    Ở nhịp PCLK tiếp theo, Camera thè ra 8-bit nửa cuối của điểm ảnh (3 bit Xanh lá còn lại và 5 bit Xanh dương).<br>
+    Ngay lập tức, FPGA sử dụng phép toán nối chuỗi (Concatenation) trong Verilog: <code>dout = {byte_high, d}</code>. Nó đem cái túi <code>byte_high</code> đang chờ sẵn ghép với 8-bit <code>d</code> vừa tới để đúc thành một từ 16-bit RGB565 hoàn chỉnh!<br>
+    Điểm ảnh đã thành hình, FPGA lập tức vung cờ báo hiệu hợp lệ (<code>we = 1</code>) để nhồi viên kẹo 16-bit này vào bộ đệm W-FIFO.<br>
+    Đồng thời, con lắc <code>byte_sel</code> được cộng thêm 1. Vì chỉ có độ rộng 1-bit, phép toán <code>1 + 1</code> sẽ làm nó tràn và tự động quay về 0. Hệ thống trở lại Bước 1, há miệng chờ điểm ảnh tiếp theo!</li>
 </ul>
-<h2>3. Cầu nối Async FIFO: Vượt Qua Khoảng Cách Không Gian - Thời Gian (Clock Domain)</h2>
-<p>Khối DVP Capture hoạt động <strong>HOÀN TOÀN</strong> dựa trên xung <strong>PCLK của Camera</strong>, KHÔNG DÙNG xung nội hệ thống của FPGA. 
-Nó đem dữ liệu 16-bit đóng gói đẩy vào một <strong>Async FIFO</strong> (Bộ đệm FIFO bất đồng bộ). Đầu kia của FIFO (Read Domain) sẽ được điều khiển bởi khối xử lý hệ thống bằng xung nhịp 50/100MHz. Thiết kế này giúp hai miền xung nhịp (Clock Domains) độc lập, không dẫm đạp lên nhau!</p>
-<hr />
-<blockquote>
-<p><strong>⚠️ CẢNH BÁO:</strong></p>
-<h2>⚠️ LUẬT THÉP: CẠM BẪY DỄ SAI VÀ LƯU Ý SỐNG CÒN</h2>
-<ol>
-<li><strong>CẠM BẪY CLOCK DOMAIN CROSSING (CDC):</strong> Tuyệt đối không lấy tín hiệu <code>pixel_data</code> ném thẳng vào RAM hoặc bộ xử lý ảnh mà bỏ qua Async FIFO. Hậu quả: Vi phạm Setup/Hold time sinh ra Metastability, màn hình sẽ nhiễu sọc (Tearing) hoặc hệ thống sập hoàn toàn!</li>
-<li><strong>LỖI LỆCH BYTE (BYTE MISALIGNMENT):</strong> Lúc khởi động, tín hiệu chưa ổn định, hệ thống rất dễ bắt nhầm "Byte Thấp" làm "Byte Cao". Hệ quả: Màu sắc loạn xạ, nhiễu hột cát. <em>Luật thép:</em> Phải luôn dựa vào sườn xuống của VSYNC (bắt đầu khung hình mới) để Reset lại cờ chọn Byte, đảm bảo Byte đầu tiên sau VSYNC chắc chắn là Byte Cao.</li>
-<li><strong>BÓNG MA RÁC ĐẦU KHUNG HÌNH:</strong> Khi VSYNC vừa chuyển trạng thái, đường truyền từ sensor mất một vài xung nhịp <code>PCLK</code> để thực sự ổn định. Nếu logic bắt ngay pixel đầu tiên không có độ trễ an toàn, hệ thống sẽ bắt nhầm "nhiễu" thành điểm ảnh đầu tiên.</li>
-<li><strong>CẠM BẪY PHÂN CỰC (POLARITY TRAP):</strong> Các loại sensor khác nhau quy định phân cực VSYNC/HREF khác nhau. Phải soi Datasheet kỹ xem Active-High hay Active-Low, nếu code mù quáng thì "trạm đóng gói kẹo" của hệ thống sẽ đứng gói rác!</li>
-</ol>
-</blockquote>
-<h2>4. Sự Khác Biệt Cốt Lõi: Đọc Ảnh Tĩnh (Static) vs. Xử Lý Camera Thời Gian Thực (Real-time)</h2>
-<p><strong>Sự ngỡ ngàng thường gặp:</strong> Tại sao khối Camera (Capture) chỉ nhận dữ liệu vào mà lại phải xuất ra địa chỉ <code>addr</code>? Để hiểu rõ, hệ thống cần nhìn vào sự khác biệt căn bản giữa hai hệ thống:</p>
-<p><strong>1. Đọc ảnh tĩnh từ ROM/Thẻ nhớ (Static)</strong>
-- Dữ liệu hình ảnh đã có sẵn và nằm im trong bộ nhớ.
-- Hệ thống chỉ có <strong>1 "công nhân" duy nhất</strong> là khối VGA Controller. 
-- Khối VGA tự động sinh ra tọa độ quét (Read Address) để móc dữ liệu từ bộ nhớ ra và hiển thị lên màn hình một cách tuần tự. Không ai tranh giành quyền truy cập bộ nhớ với nó.</p>
-<p><strong>2. Xử lý Camera thời gian thực (Real-time)</strong>
-- Đây là một "trận chiến" của <strong>2 người công nhân độc lập</strong> cùng hoạt động trên một cái kho SDRAM duy nhất (Shared Memory).
-  - <strong>Khối Camera (Đầu Bơm):</strong> Không chỉ nhận luồng tín hiệu từ OV7670, khối DVP Capture phải làm nhiệm vụ "Tiền xử lý": đóng gói các byte dữ liệu thành 1 pixel 16-bit RGB565 và quan trọng nhất là <strong>TỰ ĐỘNG sinh ra tọa độ cất kho (Write Address)</strong> để điền kín dữ liệu vào Frame Buffer một cách chính xác theo thời gian thực.
-  - <strong>Khối VGA (Đầu Hút):</strong> Chạy hoàn toàn độc lập với tốc độ riêng của màn hình. Nhiệm vụ của nó là liên tục sinh ra tọa độ lấy kho (Read Address) để hút dữ liệu ra và vẽ lên màn hình.</p>
-<p><strong>Nhấn mạnh:</strong> Việc giao phó cho khối DVP Capture đảm nhận vai trò "Tiền xử lý" (đóng gói 16-bit và cấp Write Address) là một thiết kế tối ưu. Nó giúp <strong>giảm tải hoàn toàn</strong> gánh nặng tính toán địa chỉ cất giữ cho SDRAM Controller và khối VGA, cho phép hệ thống vận hành trơn tru trong điều kiện thời gian thực khắt khe.</p>
+
+<div class="note-box" style="background: rgba(33, 150, 243, 0.1); border-left: 4px solid #2196F3; padding: 15px; margin-top: 15px; margin-bottom: 20px; border-radius: 4px;">
+    <strong>Nhờ một cái cờ 1-bit nhỏ bé này, hàng triệu pixel mỗi giây được ghép nối một cách chuẩn xác tuyệt đối mà không bao giờ xảy ra hiện tượng "râu ông nọ cắm cằm bà kia" (Byte Swap) làm sai lệch màu sắc!</strong>
+</div>
+<h2>3. LUẬT THÉP: CÁC CẠM BẪY DỄ MẮC PHẢI KHI THU THẬP ẢNH DVP</h2>
+<p>Sau khi hiểu cách khối Capture hoạt động, đây là những cái bẫy chết người trong quá trình điều khiển Camera bằng các tín hiệu VSYNC, HREF mà chỉ những người có kinh nghiệm thực chiến mới nhận ra:</p>
+
+<div style="background: rgba(234, 179, 8, 0.1); border-left: 4px solid #eab308; padding: 15px; margin-bottom: 10px; border-radius: 4px;">
+    <strong style="color: #eab308; font-size: 1.1em;">1. LỖI LỆCH BYTE (BYTE MISALIGNMENT)</strong><br>
+    <strong>Nguy cơ:</strong> Lúc khởi động, tín hiệu chưa ổn định, hệ thống rất dễ bắt nhầm "Byte Thấp" làm "Byte Cao". Hệ quả: Màu sắc bị hoán đổi loạn xạ (Byte Swap), màn hình nhiễu hột cát.
+</div>
+<div style="background: rgba(34, 197, 94, 0.1); border-left: 4px solid #22c55e; padding: 15px; margin-bottom: 25px; border-radius: 4px;">
+    <strong style="color: #22c55e;">&rarr; Giải pháp thực tế trong Code:</strong> Bắt buộc phải đưa tín hiệu <code>vsync</code> vào khối <code>always</code>. Bất cứ khi nào cờ <code>vsync</code> bật lên (báo hiệu chuyển giao khung hình mới), ta lập tức ép cứng biến luân phiên <code>byte_sel &lt;= 1'b0</code>. Điều này tạo ra một "điểm neo" tuyệt đối, đảm bảo ngay khi <code>href</code> bật lên ở dòng đầu tiên của bức tranh, byte thu được chắc chắn 100% được xếp vào vị trí Byte Cao.
+</div>
+
+<div style="background: rgba(234, 179, 8, 0.1); border-left: 4px solid #eab308; padding: 15px; margin-bottom: 10px; border-radius: 4px;">
+    <strong style="color: #eab308; font-size: 1.1em;">2. BÓNG MA RÁC LÚC KHỞI ĐỘNG (STARTUP GARBAGE FRAMES)</strong><br>
+    <strong>Nguy cơ:</strong> Khi hệ thống vừa được cấp nguồn hoặc Camera vừa nhận lệnh Reset, các mạch điện Analog và thuật toán tự động bên trong Camera (như Cân bằng trắng AWB, Phơi sáng tự động AGC) chưa thể hoạt động trơn tru ngay lập tức. Cảm biến giống như một người vừa ngủ dậy, bị chói mắt và cần một khoảng thời gian tĩnh để "điều tiết". Nếu khối FPGA háu đói, cấu hình và bắt ngay những khung hình đầu tiên này đẩy lên VGA, màn hình sẽ bị chớp nháy lóa sáng, sai màu, hoặc đầy nhiễu rác.
+</div>
+<div style="background: rgba(34, 197, 94, 0.1); border-left: 4px solid #22c55e; padding: 15px; margin-bottom: 25px; border-radius: 4px;">
+    <strong style="color: #22c55e;">&rarr; Giải pháp thực tế trong Code (Tạo độ trễ an toàn 10ms):</strong> Độ trễ này không nằm ở khối Capture, mà được đặt trong khối Cấu hình I2C Master (<code>ov7670_config.v</code>)! Ta đã thiết kế một thanh ghi <code>delay_cnt</code> 20-bit đếm ngược 500.000 nhịp xung clock (tương đương 10ms ở tần số 50MHz).
+    <br><br>
+    Đoạn mã kích hoạt bộ đếm ngược:
+    <pre><code class="language-verilog">// Cần trễ 10ms ở trạng thái IDLE (khi khởi động) hoặc khi gửi lệnh reset camera (1280)
+if (state_current == STATE_IDLE || (state_current == STATE_SEND &amp;&amp; rom_data == 16'h1280)) begin
+    delay_cnt &lt;= 20'd500_000; // Đặt giá trị 500,000 để đếm ngược tạo trễ 10ms
+end else if (delay_cnt &gt; 0) begin
+    delay_cnt &lt;= delay_cnt - 1'b1; // Giảm dần bộ đếm
+end</code></pre>
+    Đoạn mã "Khóa chặt" Máy trạng thái (FSM) không cho chạy:
+    <pre><code class="language-verilog">STATE_IDLE: begin
+    // Đợi 10ms sau khi cấp nguồn rồi mới bắt đầu (i2c_ready = 1 và delay_cnt = 0)
+    if(i2c_ready &amp;&amp; delay_cnt == 0) begin
+        state_next = STATE_CHECK;
+    end
+end</code></pre>
+    Khoảng thời gian tĩnh lặng 10ms này chính là "Độ trễ an toàn" ép FPGA phải kiên nhẫn chờ đợi mạch điện Analog của Camera ổn định hoàn toàn rồi mới bắt đầu giao tiếp và thu thập ảnh.
+</div>
+
+<div style="background: rgba(234, 179, 8, 0.1); border-left: 4px solid #eab308; padding: 15px; margin-bottom: 10px; border-radius: 4px;">
+    <strong style="color: #eab308; font-size: 1.1em;">3. CẠM BẪY PHÂN CỰC (POLARITY TRAP)</strong><br>
+    <strong>Nguy cơ:</strong> Các loại cảm biến Camera khác nhau quy định sự phân cực của VSYNC và HREF hoàn toàn khác nhau. Nếu cứ nhắm mắt copy code mù quáng, cái "Trạm đóng gói kẹo" của hệ thống sẽ chỉ đứng đóng gói toàn rác!
+</div>
+<div style="background: rgba(34, 197, 94, 0.1); border-left: 4px solid #22c55e; padding: 15px; margin-bottom: 25px; border-radius: 4px;">
+    <strong style="color: #22c55e;">&rarr; Giải pháp thực tế trong Hệ thống:</strong> Không bao giờ được code mò! Trong dự án này, ta đã đọc kỹ Datasheet của OV7670 và xác định cờ VSYNC mặc định là Tích cực mức Cao (Active-High) trong suốt thời gian Blanking. Đồng thời, ta hoàn toàn có thể làm chủ cực tính này bằng cách điều khiển khối I2C Master ghi giá trị vào thanh ghi COM10 (địa chỉ 0x15) của Camera để lật ngược cực tính VSYNC/HREF nếu muốn. Xác định chuẩn phân cực là bước sinh tử trước khi đặt bút viết dòng lệnh <code>if (vsync == 1)</code>.
+</div>
+
+<h2>4. Cầu nối Async FIFO: Vượt Qua Khoảng Cách Không Gian - Thời Gian (Clock Domain)</h2>
+<p>Sau khi thu thập thành công, khối DVP Capture (hoạt động hoàn toàn dựa trên xung PCLK ~24MHz của Camera) phải gửi dữ liệu cho miền đọc của SDRAM (hoạt động ở xung nội bộ 50MHz). Để đưa điểm ảnh 16-bit từ "cõi 24MHz" sang "cõi 50MHz" một cách an toàn, hệ thống bắt buộc phải dùng một Async FIFO (Hàng đợi Bất đồng bộ).</p>
+
+<p>Đây là ranh giới sống còn của hệ thống với những quy tắc thiết kế vô cùng khắt khe:</p>
+<ul>
+    <li>
+        <div style="background: rgba(234, 179, 8, 0.1); border-left: 4px solid #eab308; padding: 15px; margin-bottom: 15px; border-radius: 4px;">
+            <strong style="color: #eab308;">Cạm bẫy Clock Domain Crossing (CDC):</strong> Tuyệt đối không lấy chuỗi dữ liệu (<code>pixel_data</code>) ném thẳng vào RAM hoặc bộ xử lý ảnh mà bỏ qua Async FIFO. <strong>Hậu quả:</strong> Xung nhịp 50MHz bên miền Đọc hoàn toàn có thể lấy mẫu trúng ngay lúc dữ liệu từ miền 24MHz đang rơi vào vùng Setup/Hold time. Vi phạm định thời này sẽ sinh ra lỗi Metastability (Trạng thái lơ lửng / Siêu ổn) khiến Flip-Flop không thể quyết định được mức 0 hay 1, từ đó đọc ra toàn rác và làm treo cứng toàn bộ hệ thống!
+        </div>
+    </li>
+    <li>
+        <div style="background: rgba(34, 197, 94, 0.1); border-left: 4px solid #22c55e; padding: 15px; margin-bottom: 15px; border-radius: 4px;">
+            <strong style="color: #22c55e;">Nghệ thuật đếm bằng Mã Gray (Gray Code):</strong> Để biết FIFO đã đầy hay rỗng, hệ thống phải truyền biến đếm số lượng qua lại giữa 2 miền Clock. Kỹ sư IC tuyệt đối cấm dùng mã Nhị phân (Binary) để đếm, vì mã Nhị phân khi đổi số (ví dụ từ 3 lên 4 là <code>011</code> sang <code>100</code>) bị lật nhiều bit cùng lúc, rất dễ gây ra hiện tượng đọc rác (Glitch). Async FIFO bắt buộc phải dùng Mã Gray, lật đúng 1 bit ở mỗi lần đếm, chặn đứng hoàn toàn nguy cơ đọc sai con trỏ khi băng qua miền xung nhịp!
+        </div>
+    </li>
+</ul>
+
 <h2>5. Nâng cấp Kiến trúc: Tại sao phải chuyển từ Line Buffer lên Ping-Pong Frame Buffer?</h2>
 <p>Trong các thiết kế xử lý ảnh tĩnh cơ bản, người ta thường dùng <strong>Line Buffer</strong> (chỉ đệm 1-2 hàng điểm ảnh) hoặc <strong>Single Buffer</strong> (chỉ dùng 1 kho duy nhất). Nhưng đối với hệ thống Camera thời gian thực, đây là một thiết kế tiềm ẩn rủi ro rất lớn mang tên <strong>Xé hình (Screen Tearing)</strong>.</p>
 <p><strong>1. Thảm họa chênh lệch tốc độ (Tearing Disaster)</strong>
