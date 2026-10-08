@@ -1601,6 +1601,65 @@ Trả lại sự công bằng cho thông số CAS Latency bằng cách tăng bi�
 
 
 
+
+    <!-- Custom Toast Notification -->
+    <style>
+    #author-toast {
+        position: fixed;
+        top: 24px;
+        right: 24px;
+        background: rgba(30, 41, 59, 0.95);
+        backdrop-filter: blur(12px);
+        border-left: 4px solid #38bdf8;
+        color: #f8fafc;
+        padding: 16px 24px;
+        border-radius: 8px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        font-size: 15px;
+        z-index: 9999;
+        transform: translateX(150%);
+        transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border-right: 1px solid rgba(255,255,255,0.1);
+        border-top: 1px solid rgba(255,255,255,0.1);
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    #author-toast.show {
+        transform: translateX(0);
+    }
+    #author-toast svg {
+        width: 24px;
+        height: 24px;
+        color: #38bdf8;
+        flex-shrink: 0;
+    }
+    </style>
+
+    <div id="author-toast">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span>Đây là bài báo cáo được thực hiện bởi: <strong style="color:#38bdf8;">Trương Công Việt Hoàng</strong></span>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            setTimeout(function() {
+                var toast = document.getElementById("author-toast");
+                if(toast) {
+                    toast.classList.add("show");
+                    
+                    // Auto hide after 5 seconds
+                    setTimeout(function() {
+                        toast.classList.remove("show");
+                    }, 5000);
+                }
+            }, 800); // Wait slightly before showing
+        });
+    </script>
+
 </body>
 </html>
 
