@@ -947,6 +947,69 @@ end</code></pre>
     <strong>Lý do 2: Mạch đồng bộ chống lơ lửng (CDC Synchronizer)</strong><br>
     Tín hiệu <code>vsync</code> sinh ra từ Camera chạy ở 24MHz, nhưng khối Arbiter chạy ở 50MHz. Đưa thẳng một tín hiệu khác Clock Domain vào mạch logic sẽ vi phạm Setup/Hold time, sinh ra Metastability. Hai thanh ghi d1, d2 mắc nối tiếp nhau tạo thành một mạch <strong>Double-Flop Synchronizer kinh điển</strong> để cách ly và triệt tiêu lỗi lơ lửng này!
 </div>
+
+
+<h2>6. Cơ sở lý thuyết Arbiter: Cỗ máy điều phối (FSM)</h2>
+<h3>6.1. BẢNG PHÂN VAI (TỪ ĐIỂN CÁC BIẾN QUAN TRỌNG)</h3>
+<p>Trong mô hình "Hệ thống Trạm Bơm", con chip SDRAM khổng lồ được chia làm 2 bể (Bể 0 và Bể 1). Dưới đây là các "diễn viên" vận hành hệ thống này:</p>
+<ul>
+<li><strong><code>bank_write</code> (Vòi Bơm của Suối):</strong> Cờ quyết định dòng nước (Pixel) từ Camera sẽ đổ vào Bể 0 hay Bể 1. Cơ chế này do tín hiệu Camera tự quản lý ngầm.</li>
+<li><strong><code>bank_read</code> (Vòi Hút của VGA):</strong> Cờ quyết định dòng nước hút ra màn hình sẽ lấy từ Bể 0 hay Bể 1. Biến này do Máy trạng thái (FSM) - tức "Bác Gác Đập" - quản lý.</li>
+<li><strong><code>bank_completed</code> (Con Dấu "THÀNH PHẨM"):</strong> Luôn trỏ vào cái Bể vừa được Camera bơm đầy đặn và nguyên vẹn nhất. Đây là điểm neo duy nhất để hệ thống VGA biết nên hút nước ở đâu.</li>
+<li><strong><code>camera_vsync_falling</code> (Tiếng Còi Báo Đầy của Suối):</strong> Chớp lên mức 1 trong đúng 1 nhịp xung nhịp khi Camera vừa chụp xong 1 bức ảnh.</li>
+<li><strong><code>vsync_falling</code> (Tiếng Còi Báo Cạn của VGA):</strong> Chớp lên mức 1 trong đúng 1 nhịp xung nhịp khi màn hình VGA vừa quét xong 1 khung hình.</li>
+<li><strong><code>vsync_req</code> (Tờ Giấy Note "Nhắc Dọn Dẹp"):</strong> Được sinh ra ngay khi còi VGA (<code>vsync_falling</code>) kêu. Nó đóng vai trò như một tờ giấy note dán dính trên bàn làm việc của Bác Gác Đập (FSM) để đảm bảo Bác không bao giờ quên nhiệm vụ Reset (dọn dẹp R-FIFO và cập nhật Bể hút) dù đang bận rộn điều khiển SDRAM ngoài công trường.</li>
+</ul>
+<hr />
+<h3>6.2. KỊCH BẢN THỜI GIAN THỰC (BÍ MẬT HIỂN THỊ 30FPS LÊN MÀN HÌNH 60HZ)</h3>
+<p>Có một nghịch lý về tốc độ: Camera (30fps) mất tới ~33ms để bơm đầy một Bể, trong khi VGA (60fps) chỉ mất ~16ms để hút cạn Bể. Nếu gạt cần hoán đổi Bể mù quáng, VGA sẽ hút trúng Bể đang bơm dở dang gây xé hình. 
+Dưới đây là kịch bản thời gian thực giải quyết bài toán này:</p>
+<p><em>(Giả sử lúc bắt đầu: Camera đang bơm Bể 0 (<code>bank_write=0</code>). VGA đang hút Bể 1 (<code>bank_read=1</code>). Con dấu Thành phẩm đang đóng ở Bể 1 (<code>bank_completed=1</code>).)</em></p>
+<ul>
+<li>
+<p><strong>Sự kiện 1: VGA vẽ xong sớm (Mốc 16ms)</strong>
+    Khu dân cư VGA chạy với tốc độ 60fps nên hút cạn Bể rất nhanh. Vừa vẽ xong khung hình, còi <strong><code>vsync_falling</code></strong> rít lên. Lập tức mạch điện viết một Tờ Giấy Note <strong><code>vsync_req = 1</code></strong> dán lên bàn FSM.
+    Bác gác đập FSM làm xong việc, bước về chòi (<code>IDLE</code>), thấy Giấy Note liền thi hành thủ tục:</p>
+<ul>
+<li>Nhìn xem Bể nào đang có con dấu Thành Phẩm (<code>bank_read &lt;= bank_completed</code>). </li>
+<li><em>Vì Camera (30fps) mới bơm được một nửa Bể 0, chưa hú còi, nên <code>bank_completed</code> VẪN LÀ 1.</em></li>
+<li>Bác gác đập cắm lại vòi hút vào Bể 1, sau đó tự tay xé giấy Note (<code>vsync_req &lt;= 0</code>).
+$ightarrow$ <strong>Kết quả:</strong> VGA ngậm vòi ở Bể 1 và tiếp tục vẽ lại khung hình cũ thêm một lần nữa! Màn hình hoàn toàn nguyên vẹn, không hề bị xé.</li>
+</ul>
+</li>
+<li>
+<p><strong>Sự kiện 2: Suối bơm xong (Mốc 33ms)</strong>
+    Sau khi hì hục, Camera cũng bơm đầy trọn vẹn Bể 0. Còi <strong><code>camera_vsync_falling</code></strong> kêu lên. 
+    Không cần Bác gác đập (FSM) can thiệp, một mạch tự động ngầm lập tức giập con dấu Thành phẩm mới: <strong><code>bank_completed &lt;= 0</code></strong> (Báo hiệu Bể 0 đã được bơm đầy!). Đồng thời bẻ Vòi Bơm sang Bể mới: <strong><code>bank_write &lt;= 1</code></strong> để chuẩn bị hứng ảnh tiếp theo.</p>
+</li>
+<li>
+<p><strong>Sự kiện 3: VGA vẽ xong lần 2 (Mốc 33ms)</strong>
+    VGA vừa vẽ xong bức hình cũ lần thứ 2. Còi <strong><code>vsync_falling</code></strong> lại rít. Tờ Giấy Note <strong><code>vsync_req = 1</code></strong> lại được dán lên bàn.
+    Bác gác đập FSM bước về chòi, lại làm thủ tục lấy Thành phẩm: <code>bank_read &lt;= bank_completed</code>.
+    Nhưng lần này, con dấu <code>bank_completed</code> ĐÃ LÀ 0!
+    $ightarrow$ <strong>Kết quả:</strong> Vòi Hút <code>bank_read</code> lập tức được Bác rút ra và cắm sang Bể 0. Giấy Note được xé. Khu dân cư chính thức được tận hưởng khung hình mới toanh nguyên vẹn!</p>
+</li>
+</ul>
+<h3>6.3. BÚT KÝ CỦA BÁC GÁC ĐẬP (MÔ HÌNH TRỪU TƯỢNG MÁY TRẠNG THÁI FSM)</h3>
+<p>Để dễ hình dung về thuật toán điều khiển của FSM, chúng ta hãy coi SDRAM như một Đại Hồ Thủy Điện, W-FIFO là Hồ Thu Thập (chứa nước từ Suối Camera), R-FIFO là Tháp Phân Phối (cấp nước cho Khu Dân Cư VGA). Dưới đây là "bút ký" làm việc của Bác Gác Đập (FSM):</p>
+<p><strong>I. TRONG CHÒI ĐIỀU HÀNH (Trạng thái <code>IDLE</code>)</strong>
+Bác gác đập ngồi trong chòi. Trên bàn làm việc có một cái <strong>Đèn Báo Động Đỏ</strong> (<code>vsync_req</code>), bên trái là thước đo mực nước của <strong>Tháp Phân Phối</strong> (<code>r_fifo_count</code>), bên phải là thước đo của <strong>Hồ Thu Thập</strong> (<code>w_fifo_count</code>). Bác làm việc theo nguyên tắc sinh tử sau:</p>
+<ul>
+<li><strong>Lệnh Bài Tuyệt Đối: Đèn Báo Động Đỏ rực sáng (<code>vsync_req == 1</code>)</strong>
+    Đèn đỏ báo hiệu ngày hôm nay đã kết thúc, Khu dân cư đã xài xong một chu kỳ nước. Bác gác đập lập tức kéo cần <strong>Xả Đáy Tháp</strong> (<code>r_fifo_clear &lt;= 1</code>) để sục rửa cặn. Sau đó, Bác đưa cả <strong>Tuabin Hút</strong> và <strong>Tuabin Bơm</strong> về lại độ sâu xuất phát (<code>read_addr</code> và <code>write_addr</code> = 0). Xong xuôi, Bác tự tay đập tắt Đèn Đỏ (<code>vsync_req &lt;= 0</code>) và tiếp tục ngồi chờ.</li>
+<li><strong>Ưu tiên Số 1: Dự Trữ Nước (<code>r_fifo_count &lt;= 768</code>)</strong>
+    Nếu Tháp Phân Phối (sức chứa 1024) vừa tụt xuống đủ chỗ trống để chứa đúng 1 mẻ bơm (1024 - 256 = 768), Bác phải bơm bù ngay lập tức! Bác không bao giờ được phép để Tháp cạn kiệt, vì nếu Bác bận rộn với Tuabin Bơm, Khu dân cư sẽ chết khát (Underflow). Bác đóng van xả đáy lại (<code>r_fifo_clear &lt;= 0</code>), cầm chìa khóa phóng ra đập để vận hành quy trình Hút Nước (<code>ASSERT_READ</code>).</li>
+<li><strong>Ưu tiên Số 2: Cứu Tràn (<code>w_fifo_count &gt;= 256</code>)</strong>
+    Nếu Tháp Phân Phối vẫn đủ nước, nhưng Hồ Thu Thập từ Suối đã đầy dềnh lên, Bác phải xả bớt nước vào Đại Hồ SDRAM để tránh tràn. Bác phóng ra đập chạy quy trình Bơm Nước (<code>FETCH_W_FIFO_1</code>).</li>
+</ul>
+<p><strong>II. QUY TRÌNH HÚT NƯỚC LÊN THÁP (<code>READ</code>)</strong>
+*   <strong>Mở Cửa Cống (<code>ASSERT_READ</code>):</strong> Bác định vị đầu vòi của Tuabin Hút vào cái Bể đang được chốt là Thành phẩm (<code>bank_read</code>) và hạ vòi xuống đúng độ sâu hiện tại (<code>read_addr</code>). Bác nhấn nút Kích hoạt Tuabin (<code>sys_read_req &lt;= 1</code>), lùi lại chờ đợi (<code>WAIT_READ</code>).
+*   <strong>Chờ Tuabin Gầm Rú (<code>WAIT_READ</code>):</strong> Bác thả tay khỏi nút bấm (<code>sys_read_req &lt;= 0</code>). Tuabin tự động hút chính xác 256 khối nước đẩy lên Tháp. Khi cỗ máy xả tiếng hơi dài báo hoàn tất (<code>sys_ready == 1</code>), Bác ghi sổ hạ độ sâu của Tuabin Hút xuống thêm 256 nấc (<code>read_addr &lt;= read_addr + 256</code>), rồi lững thững quay về Chòi (<code>IDLE</code>).</p>
+<p><strong>III. QUY TRÌNH BƠM NƯỚC VÀO ĐẠI HỒ (<code>WRITE</code>)</strong>
+*   <strong>Mồi Nước (<code>FETCH_1</code> và <code>FETCH_2</code>):</strong> Bác phải tự tay vặn van xả đáy của Hồ Thu Thập đúng 1 tích tắc (<code>w_fifo_rd_en &lt;= 1</code> ở <code>FETCH_1</code>, rồi vặn đóng lại <code>= 0</code> ở <code>FETCH_2</code>) để khối nước đầu tiên tứa ra nằm ngoan ngoãn chờ tại miệng cống.
+*   <strong>Mở Cửa Nạp (<code>ASSERT_WRITE</code>):</strong> Bác định vị đầu vòi của Tuabin Bơm vào Bể đang hứng nước (<code>bank_write</code>) và hạ vòi xuống đúng độ sâu hiện tại (<code>write_addr</code>). Bác nhấn nút Yêu cầu Nạp (<code>sys_write_req &lt;= 1</code>) và lùi lại (<code>WAIT_WRITE</code>).
+*   <strong>Bơm Nhịp Nhàng (<code>WAIT_WRITE</code>):</strong> Bác thả tay khỏi nút nạp (<code>sys_write_req &lt;= 0</code>). Ở bên trong, cỗ máy SDRAM khổng lồ vẫy tay gọi: <em>"Đưa nước đây!"</em> (<code>sys_wr_ack == 1</code>). Cứ mỗi lần nghe tiếng gọi đó, Bác lại nhịp nhàng gạt van Hồ Thu Thập đúng 1 lần (<code>w_fifo_rd_en &lt;= sys_wr_ack</code>) để rỏ xuống đúng 1 khối nước. Hai bên phối hợp bóp - nhả cho đến khi cỗ máy nuốt đủ 256 khối nước (<code>sys_ready == 1</code>). Bác vặn khóa cứng van xả lại (<code>w_fifo_rd_en &lt;= 0</code>), hạ độ sâu Tuabin Bơm xuống 256 nấc (<code>write_addr &lt;= write_addr + 256</code>), quệt mồ hôi trán và quay về Chòi (<code>IDLE</code>).</p>
+
 <hr />
 <blockquote>
 <p><em>Quá trình triển khai lý thuyết thiết kế lên phần cứng vật lý luôn đi kèm với các thách thức về định thời (Timing) và đồng bộ. Dưới đây là Nhật ký khắc phục sự cố (Debug Log) ghi lại toàn bộ quá trình tối ưu hóa hệ thống, minh chứng cho phương pháp cô lập lỗi và phân tích tín hiệu (Waveform Analysis).</em> </p>
